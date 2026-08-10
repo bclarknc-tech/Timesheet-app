@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timesheet Entry</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; }
+        .container { max-width: 600px; margin: 40px auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { margin-bottom: 30px; color: #333; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #555; font-weight: 500; }
+        select, input[type="text"], textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: inherit; }
+        textarea { resize: vertical; min-height: 80px; }
+        input[type="number"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        button { width: 100%; padding: 12px; background: #0066cc; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
+        button:hover { background: #0052a3; }
+        .success { color: green; margin-top: 10px; }
+        .error { color: red; margin-top: 10px; }
+        .hours-note { font-size: 12px; color: #888; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Timesheet Entry</h1>
+        <form id="timesheetForm">
+            <div class="form-group">
+                <label for="employee">Employee Name</label>
+                <select id="employee" name="employee_name" required>
+                    <option value="">-- Select Employee --</option>
+                    <option value="Brian Clark">Brian Clark</option>
+                    <option value="Rolf Hagler">Rolf Hagler</option>
+                    <option value="Dylan Williams">Dylan Williams</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="job">Job Number</label>
+                <select id="job" name="job_number" required>
+                    <option value="">-- Select Job --</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="jobName">Job Name</label>
+                <input type="text" id="jobName" name="job_name" readonly>
+            </div>
+
+            <div class="form-group">
+                <label for="hours">Hours (in quarter increments)</label>
+                <input type="number" id="hours" name="hours" step="0.25" min="0.25" required>
+                <div class="hours-note">Enter values like 0.25, 0.5, 0.75, 1.0, etc.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description of Work</label>
+                <textarea id="description" name="description" required></textarea>
+            </div>
+
+            <button type="submit">Submit Timesheet</button>
+            <div id="message"></div>
+        </form>
+    </div>
+
+    <script>
+        let jobs = [];
+
+        fetch('/api/jobs')
+            .then(r => r.json())
+            .then(data => {
+                jobs = data;
+                const select = document.getElementById('job');
+                jobs.forEach(job => {
+                    const opt = document.createElement('option');
+                    opt.value = job.number;
+                    opt.textContent = job.number + ' - ' + job.name;
+                    select.appendChild(opt);
+                });
+            });
+
+        document.getElementById('job').addEventListener('change', (e) => {
+            const job = jobs.find(j => j.number === e.target.value);
+            if (job) {
+                document.getElementById('jobName').value = job.name;
+            }
+        });
+
+        document.getElementById('timesheetForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                employee_name: form.employee_name.value,
+                job_number: form.job_number.value,
+                job_name: form.job_name.value,
+                hours: form.hours.value,
+                description: form.description.value
+            };
+
+            fetch('/api/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            })
+            .then(r => r.json())
+            .then(result => {
+                const msg = document.getElementById('message');
+                if (result.success) {
+                    msg.textContent = 'Timesheet submitted successfully!';
+                    msg.className = 'success';
+                    form.reset();
+                } else {
+                    msg.textContent = 'Error: ' + result.error;
+                    msg.className = 'error';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

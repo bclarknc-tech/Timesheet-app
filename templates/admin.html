@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timesheet Admin</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 20px auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        h1 { margin-bottom: 20px; color: #333; }
+        .filters { margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .filters input, .filters select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .filters button { padding: 8px 16px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .filters button:hover { background: #0052a3; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #f0f0f0; padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600; }
+        td { padding: 12px; border-bottom: 1px solid #eee; }
+        tr:hover { background: #fafafa; }
+        .bill-btn { padding: 6px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .bill-btn.billed { background: #6c757d; }
+        .bill-btn:hover { opacity: 0.9; }
+        .report-section { margin-top: 30px; padding-top: 30px; border-top: 2px solid #eee; }
+        .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+        .unbilled { background: #fff3cd; color: #856404; }
+        .billed { background: #d4edda; color: #155724; }
+        .totals { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Timesheet Admin</h1>
+
+        <div class="filters">
+            <input type="text" id="jobFilter" placeholder="Job Number">
+            <input type="date" id="startDate" placeholder="Start Date">
+            <input type="date" id="endDate" placeholder="End Date">
+            <label>
+                <input type="checkbox" id="unbilledOnly">
+                Unbilled Only
+            </label>
+            <button onclick="generateReport()">Generate Report</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Job #</th>
+                    <th>Job Name</th>
+                    <th>Hours</th>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="entries"></tbody>
+        </table>
+
+        <div class="report-section">
+            <h2>Report Summary</h2>
+            <div class="totals">
+                <p><strong>Total Hours:</strong> <span id="totalHours">0</span></p>
+                <p><strong>Total Entries:</strong> <span id="totalEntries">0</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function loadEntries() {
+            const tbody = document.getElementById('entries');
+            tbody.innerHTML = '';
+
+            fetch('/admin')
+                .then(r => r.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const entries = JSON.parse(doc.querySelector('script').textContent.match(/var entries = (.*?);/)[1]);
+
+                    entries.forEach(entry => {
+                        const row = tbody.insertRow();
+                        row.innerHTML = `
+                            <td>${entry.employee_name}</td>
+                            <td>${entry.job_number}</td>
+                            <td>${entry.job_name}</td>
+                            <td>${entry.hours}</td>
+                            <td>${new Date(entry.date_submitted).toLocaleDateString()}</td>
+                            <td>${entry.description}</td>
+                            <td>
+                                <span class="status-badge ${entry.is_billed ? 'billed' : 'unbilled'}">
+                                    ${entry.is_billed ? 'BILLED' : 'UNBILLED'}
+                                </span>
+                            </td>
+                            <td>
+                                <button class="bill-btn ${entry.is_billed ? 'billed' : ''}" onclick="toggleBill(${entry.id})">
+                                    ${entry.is_billed ? 'Mark Unbuild' : 'Mark Build'}
+                                </button>
+                            </td>
+                        `;
+                    });
+
+                    updateTotals(entries);
+                });
+        }
+
+        function generateReport() {
+            const job = document.getElementById('jobFilter').value;
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+            const unbilled = document.getElementById('unbilledOnly').checked;
+
+            let url = '/api/report?';
+            if (job) url += 'job_number=' + job + '&';
+            if (start) url += 'start_date=' + start + '&';
+            if (end) url += 'end_date=' + end + '&';
+            if (unbilled) url += 'unbilled_only=true&';
+
+            fetch(url)
+                .then(r => r.json())
+                .then(data => {
+                    const tbody = document.getElementById('entries');
+                    tbody.innerHTML = '';
+
+                    data.entries.forEach(entry => {
+                        const row = tbody.insertRow();
+                        row.innerHTML = `
+                            <td>${entry.employee}</td>
+                            <td>${entry.job_number}</td>
+                            <td>${entry.job_name}</td>
+                            <td>${entry.hours}</td>
+                            <td>${entry.date}</td>
+                            <td>${entry.description}</td>
+                            <td>
+                                <span class="status-badge ${entry.is_billed ? 'billed' : 'unbilled'}">
+                                    ${entry.is_billed ? 'BILLED' : 'UNBILLED'}
+                                </span>
+                            </td>
+                            <td>
+                                <button class="bill-btn ${entry.is_billed ? 'billed' : ''}" onclick="toggleBill(${entry.id})">
+                                    ${entry.is_billed ? 'Mark Unbuild' : 'Mark Build'}
+                                </button>
+                            </td>
+                        `;
+                    });
+
+                    document.getElementById('totalHours').textContent = data.total_hours;
+                    document.getElementById('totalEntries').textContent = data.entries.length;
+                });
+        }
+
+        function toggleBill(entryId) {
+            fetch(`/api/toggle-bill/${entryId}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(result => {
+                    if (result.success) {
+                        generateReport();
+                    }
+                });
+        }
+
+        function updateTotals(entries) {
+            const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
+            document.getElementById('totalHours').textContent = totalHours;
+            document.getElementById('totalEntries').textContent = entries.length;
+        }
+
+        loadEntries();
+    </script>
+</body>
+</html>
