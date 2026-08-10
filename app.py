@@ -17,6 +17,7 @@ class Timesheet(db.Model):
     job_name = db.Column(db.String(200), nullable=False)
     hours = db.Column(db.Float, nullable=False)
     description = db.Column(db.Text, nullable=False)
+    work_date = db.Column(db.Date, nullable=False)
     date_submitted = db.Column(db.DateTime, default=datetime.utcnow)
     is_billed = db.Column(db.Boolean, default=False)
 
@@ -50,6 +51,7 @@ def get_jobs():
 
 @app.route('/api/submit', methods=['POST'])
 def submit_timesheet():
+    from datetime import date
     data = request.json
     try:
         entry = Timesheet(
@@ -57,7 +59,8 @@ def submit_timesheet():
             job_number=data['job_number'],
             job_name=data['job_name'],
             hours=float(data['hours']),
-            description=data['description']
+            description=data['description'],
+            work_date=datetime.strptime(data['date'], '%Y-%m-%d').date()
         )
         db.session.add(entry)
         db.session.commit()
@@ -106,11 +109,12 @@ def get_report():
     total_hours = 0
     for entry in entries:
         result.append({
+            'id': entry.id,
             'employee': entry.employee_name,
             'job_number': entry.job_number,
             'job_name': entry.job_name,
             'hours': entry.hours,
-            'date': entry.date_submitted.strftime('%Y-%m-%d'),
+            'date': entry.work_date.strftime('%Y-%m-%d'),
             'description': entry.description,
             'is_billed': entry.is_billed
         })
