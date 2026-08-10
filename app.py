@@ -117,10 +117,10 @@ def get_report():
         query = query.filter_by(job_number=job_number)
 
     if start_date:
-        query = query.filter(Timesheet.date_submitted >= datetime.fromisoformat(start_date))
+        query = query.filter(Timesheet.work_date >= datetime.fromisoformat(start_date).date())
 
     if end_date:
-        query = query.filter(Timesheet.date_submitted <= datetime.fromisoformat(end_date))
+        query = query.filter(Timesheet.work_date <= datetime.fromisoformat(end_date).date())
 
     if unbilled_only:
         query = query.filter_by(is_billed=False)
