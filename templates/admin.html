@@ -69,40 +69,7 @@
 
     <script>
         function loadEntries() {
-            const tbody = document.getElementById('entries');
-            tbody.innerHTML = '';
-
-            fetch('/admin')
-                .then(r => r.text())
-                .then(html => {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(html, 'text/html');
-                    const entries = JSON.parse(doc.querySelector('script').textContent.match(/var entries = (.*?);/)[1]);
-
-                    entries.forEach(entry => {
-                        const row = tbody.insertRow();
-                        row.innerHTML = `
-                            <td>${entry.employee_name}</td>
-                            <td>${entry.job_number}</td>
-                            <td>${entry.job_name}</td>
-                            <td>${entry.hours}</td>
-                            <td>${new Date(entry.date_submitted).toLocaleDateString()}</td>
-                            <td>${entry.description}</td>
-                            <td>
-                                <span class="status-badge ${entry.is_billed ? 'billed' : 'unbilled'}">
-                                    ${entry.is_billed ? 'BILLED' : 'UNBILLED'}
-                                </span>
-                            </td>
-                            <td>
-                                <button class="bill-btn ${entry.is_billed ? 'billed' : ''}" onclick="toggleBill(${entry.id})">
-                                    ${entry.is_billed ? 'Mark Unbuild' : 'Mark Build'}
-                                </button>
-                            </td>
-                        `;
-                    });
-
-                    updateTotals(entries);
-                });
+            generateReport();
         }
 
         function generateReport() {
