@@ -67,8 +67,7 @@ def submit_timesheet():
 
 @app.route('/admin')
 def admin():
-    entries = Timesheet.query.all()
-    return render_template('admin.html', entries=entries)
+    return render_template('admin.html')
 
 @app.route('/api/toggle-bill/<int:entry_id>', methods=['POST'])
 def toggle_bill(entry_id):
