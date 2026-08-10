@@ -41,6 +41,9 @@ def load_jobs():
 
 load_jobs()
 
+with app.app_context():
+    db.create_all()
+
 @app.route('/')
 def index():
     return render_template('index.html', employees=EMPLOYEES, jobs=JOBS)
