@@ -20,35 +20,23 @@ class Timesheet(db.Model):
     date_submitted = db.Column(db.DateTime, default=datetime.utcnow)
     is_billed = db.Column(db.Boolean, default=False)
 
+import json
+import os
+
 EMPLOYEES = ['Brian Clark', 'Rolf Hagler', 'Dylan Williams']
 
 JOBS = []
 
 def load_jobs():
     global JOBS
-    import csv
-    import os
+    json_path = os.path.join(os.path.dirname(__file__), 'jobs.json')
 
-    csv_path = r'C:\Users\bclar\OneDrive - segeomatics.com\2009 - SGG JOBS\Job List - 09302009 - C.csv'
-
-    if os.path.exists(csv_path):
-        try:
-            with open(csv_path, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if row and row.get('Job Number') and row.get('Job Name'):
-                        job_num = row['Job Number'].strip()
-                        job_name = row['Job Name'].strip()
-                        if job_num and job_name:
-                            JOBS.append({
-                                'number': job_num,
-                                'name': job_name
-                            })
-        except Exception as e:
-            print(f"Error loading jobs: {e}")
-            JOBS = []
-    else:
-        print(f"CSV not found at {csv_path}, using empty job list")
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            JOBS = json.load(f)
+    except Exception as e:
+        print(f"Error loading jobs from {json_path}: {e}")
+        JOBS = []
 
 @app.route('/')
 def index():
