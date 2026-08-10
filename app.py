@@ -85,6 +85,18 @@ def toggle_bill(entry_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 400
 
+@app.route('/api/delete/<int:entry_id>', methods=['DELETE'])
+def delete_entry(entry_id):
+    try:
+        entry = Timesheet.query.get(entry_id)
+        if not entry:
+            return jsonify({'success': False, 'error': 'Entry not found'}), 404
+        db.session.delete(entry)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
 @app.route('/api/report', methods=['GET'])
 def get_report():
     job_number = request.args.get('job_number')

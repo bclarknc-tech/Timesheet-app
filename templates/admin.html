@@ -18,9 +18,11 @@
         td { padding: 12px; border-bottom: 1px solid #eee; }
         td:nth-child(6) { white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 13px; }
         tr:hover { background: #fafafa; }
-        .bill-btn { padding: 6px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .bill-btn { padding: 6px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; margin-right: 5px; }
         .bill-btn.billed { background: #6c757d; }
         .bill-btn:hover { opacity: 0.9; }
+        .delete-btn { padding: 6px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .delete-btn:hover { opacity: 0.9; }
         .report-section { margin-top: 30px; padding-top: 30px; border-top: 2px solid #eee; }
         .status-badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
         .unbilled { background: #fff3cd; color: #856404; }
@@ -53,7 +55,7 @@
                     <th>Date</th>
                     <th>Description</th>
                     <th>Status</th>
-                    <th>Action</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody id="entries"></tbody>
@@ -109,6 +111,7 @@
                                 <button class="bill-btn ${entry.is_billed ? 'billed' : ''}" onclick="toggleBill(${entry.id})">
                                     ${entry.is_billed ? 'Mark UNBILLED' : 'Mark BILLED'}
                                 </button>
+                                <button class="delete-btn" onclick="deleteEntry(${entry.id})">Delete</button>
                             </td>
                         `;
                     });
@@ -126,6 +129,20 @@
                         generateReport();
                     }
                 });
+        }
+
+        function deleteEntry(entryId) {
+            if (confirm('Are you sure you want to delete this timesheet entry?')) {
+                fetch(`/api/delete/${entryId}`, { method: 'DELETE' })
+                    .then(r => r.json())
+                    .then(result => {
+                        if (result.success) {
+                            generateReport();
+                        } else {
+                            alert('Error deleting entry: ' + result.error);
+                        }
+                    });
+            }
         }
 
         function updateTotals(entries) {
