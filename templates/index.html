@@ -36,15 +36,10 @@
             </div>
 
             <div class="form-group">
-                <label for="job">Job Number</label>
+                <label for="job">Job</label>
                 <select id="job" name="job_number" required>
                     <option value="">-- Select Job --</option>
                 </select>
-            </div>
-
-            <div class="form-group">
-                <label for="jobName">Job Name</label>
-                <input type="text" id="jobName" name="job_name" readonly>
             </div>
 
             <div class="form-group">
@@ -84,20 +79,14 @@
                 });
             });
 
-        document.getElementById('job').addEventListener('change', (e) => {
-            const job = jobs.find(j => j.number === e.target.value);
-            if (job) {
-                document.getElementById('jobName').value = job.name;
-            }
-        });
-
         document.getElementById('timesheetForm').addEventListener('submit', (e) => {
             e.preventDefault();
             const form = e.target;
+            const job = jobs.find(j => j.number === form.job_number.value);
             const data = {
                 employee_name: form.employee_name.value,
                 job_number: form.job_number.value,
-                job_name: form.job_name.value,
+                job_name: job ? job.name : '',
                 date: form.date.value,
                 hours: form.hours.value,
                 description: form.description.value
