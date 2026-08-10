@@ -14,11 +14,14 @@
         select, input[type="text"], textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: inherit; }
         textarea { resize: vertical; min-height: 80px; }
         input[type="number"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        input[type="date"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; cursor: pointer; }
+        input[type="date"]:focus { outline: none; border-color: #0066cc; box-shadow: 0 0 0 2px rgba(0,102,204,0.1); }
         button { width: 100%; padding: 12px; background: #0066cc; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
         button:hover { background: #0052a3; }
         .success { color: green; margin-top: 10px; }
         .error { color: red; margin-top: 10px; }
         .hours-note { font-size: 12px; color: #888; margin-top: 5px; }
+        .description-note { font-size: 12px; color: #888; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -43,7 +46,7 @@
             </div>
 
             <div class="form-group">
-                <label for="date">Date</label>
+                <label for="date">Date Worked</label>
                 <input type="date" id="date" name="date" required>
             </div>
 
@@ -54,8 +57,9 @@
             </div>
 
             <div class="form-group">
-                <label for="description">Description of Work</label>
-                <textarea id="description" name="description" required></textarea>
+                <label for="description">Work Description</label>
+                <textarea id="description" name="description" placeholder="Enter each item on a new line - they will be bulleted" required></textarea>
+                <div class="description-note">Press Enter for each new item (will be converted to bullets)</div>
             </div>
 
             <button type="submit">Submit Timesheet</button>
@@ -83,13 +87,21 @@
             e.preventDefault();
             const form = e.target;
             const job = jobs.find(j => j.number === form.job_number.value);
+
+            const descriptionLines = form.description.value
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0)
+                .map(line => '• ' + line)
+                .join('\n');
+
             const data = {
                 employee_name: form.employee_name.value,
                 job_number: form.job_number.value,
                 job_name: job ? job.name : '',
                 date: form.date.value,
                 hours: form.hours.value,
-                description: form.description.value
+                description: descriptionLines
             };
 
             fetch('/api/submit', {
