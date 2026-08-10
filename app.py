@@ -38,6 +38,8 @@ def load_jobs():
         print(f"Error loading jobs from {json_path}: {e}")
         JOBS = []
 
+load_jobs()
+
 @app.route('/')
 def index():
     return render_template('index.html', employees=EMPLOYEES, jobs=JOBS)
