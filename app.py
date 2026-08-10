@@ -24,7 +24,7 @@ class Timesheet(db.Model):
 import json
 import os
 
-EMPLOYEES = ['Brian Clark', 'Rolf Hagler', 'Dylan Williams']
+EMPLOYEES = ['Brian Clark', 'Rolfe Hagler', 'Dylan Williams']
 
 JOBS = []
 
