@@ -40,9 +40,8 @@
 
             <div class="form-group">
                 <label for="job">Job</label>
-                <select id="job" name="job_number" required>
-                    <option value="">-- Select Job --</option>
-                </select>
+                <input type="text" id="job" name="job_number" list="jobList" placeholder="Enter or select a job number" required>
+                <datalist id="jobList"></datalist>
             </div>
 
             <div class="form-group">
@@ -75,12 +74,12 @@
             .then(r => r.json())
             .then(data => {
                 jobs = data;
-                const select = document.getElementById('job');
+                const datalist = document.getElementById('jobList');
                 jobs.forEach(job => {
                     const opt = document.createElement('option');
                     opt.value = job.number;
                     opt.textContent = job.number + ' - ' + job.name;
-                    select.appendChild(opt);
+                    datalist.appendChild(opt);
                 });
             });
 
