@@ -110,7 +110,14 @@
                 matches.forEach(job => {
                     const div = document.createElement('div');
                     div.className = 'job-suggestion';
-                    div.textContent = job.number + ' - ' + job.name;
+                    const numberSpan = document.createElement('strong');
+                    numberSpan.textContent = job.number;
+                    div.appendChild(numberSpan);
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = ' - ' + job.name;
+                    nameSpan.style.color = '#888';
+                    nameSpan.style.fontSize = '13px';
+                    div.appendChild(nameSpan);
                     div.addEventListener('click', () => {
                         jobInput.value = job.number;
                         selectedJob = job;
