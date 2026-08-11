@@ -74,8 +74,10 @@ def submit_timesheet():
         )
         db.session.add(entry)
         db.session.commit()
+        print(f"[SUBMIT] Success - ID {entry.id}, DB: {app.config['SQLALCHEMY_DATABASE_URI'][:50]}")
         return jsonify({'success': True, 'id': entry.id})
     except Exception as e:
+        print(f"[SUBMIT] Error: {str(e)}, DB: {app.config['SQLALCHEMY_DATABASE_URI'][:50]}")
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/admin')
@@ -126,6 +128,7 @@ def get_report():
         query = query.filter_by(is_billed=False)
 
     entries = query.all()
+    print(f"[REPORT] Found {len(entries)} entries, DB: {app.config['SQLALCHEMY_DATABASE_URI'][:50]}")
 
     result = []
     total_hours = 0
