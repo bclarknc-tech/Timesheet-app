@@ -646,10 +646,10 @@ function Get-StripFrame {
             continue
         }
         if ($Mode -eq 'music') {
-            # Simple beat pulse: lights stay on, brighten on beat, random color from analyser
+            # Simple beat pulse: lights stay on dim, kick bright on beat, random color from analyser
             $hue = $script:musicHue
             $sat = 1.0
-            $v   = 0.15 + 0.85 * $script:beatFlash
+            $v   = 0.05 + 0.95 * $script:beatFlash
             if ($v -gt 1) { $v = 1 } elseif ($v -lt 0) { $v = 0 }
             $rgb = Convert-HsvToRgb $hue $sat $v
             $buf[$o]     = [byte][Math]::Round(255 * $rgb[0])
