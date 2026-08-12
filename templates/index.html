@@ -45,12 +45,16 @@
             </div>
 
             <div class="form-group">
-                <label for="job">Job</label>
+                <label for="jobNumber">Job Number</label>
                 <div class="job-input-wrapper">
-                    <input type="text" id="job" name="job_number" placeholder="Enter or select a job number" required>
+                    <input type="text" id="jobNumber" name="job_number" placeholder="Enter or select a job number" required>
                     <div id="jobSuggestions" class="job-suggestions"></div>
                 </div>
-                <div id="jobNameDisplay" class="job-name-display"></div>
+            </div>
+
+            <div class="form-group">
+                <label for="jobName">Job Name</label>
+                <input type="text" id="jobName" name="job_name" placeholder="Job name (auto-filled or enter manually)" required>
             </div>
 
             <div class="form-group">
@@ -78,7 +82,6 @@
 
     <script>
         let jobs = [];
-        let selectedJob = null;
 
         fetch('/api/jobs')
             .then(r => r.json())
@@ -86,14 +89,12 @@
                 jobs = data;
             });
 
-        const jobInput = document.getElementById('job');
+        const jobNumberInput = document.getElementById('jobNumber');
+        const jobNameInput = document.getElementById('jobName');
         const jobSuggestions = document.getElementById('jobSuggestions');
-        const jobNameDisplay = document.getElementById('jobNameDisplay');
 
-        jobInput.addEventListener('input', (e) => {
+        jobNumberInput.addEventListener('input', (e) => {
             const value = e.target.value.toLowerCase();
-            jobNameDisplay.textContent = '';
-            selectedJob = null;
 
             if (!value) {
                 jobSuggestions.classList.remove('active');
@@ -119,9 +120,8 @@
                     nameSpan.style.fontSize = '13px';
                     div.appendChild(nameSpan);
                     div.addEventListener('click', () => {
-                        jobInput.value = job.number;
-                        selectedJob = job;
-                        jobNameDisplay.textContent = 'Job: ' + job.name;
+                        jobNumberInput.value = job.number;
+                        jobNameInput.value = job.name;
                         jobSuggestions.classList.remove('active');
                     });
                     jobSuggestions.appendChild(div);
@@ -130,7 +130,7 @@
         });
 
         document.addEventListener('click', (e) => {
-            if (e.target !== jobInput && e.target !== jobSuggestions) {
+            if (e.target !== jobNumberInput && !jobSuggestions.contains(e.target)) {
                 jobSuggestions.classList.remove('active');
             }
         });
@@ -148,7 +148,6 @@
         document.getElementById('timesheetForm').addEventListener('submit', (e) => {
             e.preventDefault();
             const form = e.target;
-            const jobName = selectedJob ? selectedJob.name : form.job_number.value;
 
             const descriptionLines = form.description.value
                 .split('\n')
@@ -160,7 +159,7 @@
             const data = {
                 employee_name: form.employee_name.value,
                 job_number: form.job_number.value,
-                job_name: jobName,
+                job_name: form.job_name.value,
                 date: form.date.value,
                 hours: form.hours.value,
                 description: descriptionLines
