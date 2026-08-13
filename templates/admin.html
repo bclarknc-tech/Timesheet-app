@@ -13,6 +13,8 @@
         .filters input, .filters select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
         .filters button { padding: 8px 16px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; }
         .filters button:hover { background: #0052a3; }
+        .print-btn { padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .print-btn:hover { background: #5a6268; }
         .table-wrapper { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; }
         th { background: #f0f0f0; padding: 12px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600; white-space: nowrap; }
@@ -31,6 +33,21 @@
         .totals { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 4px; }
         .group-header { background: #e8f4f8 !important; font-weight: bold !important; padding: 12px !important; }
         .filters select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .print-preview { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: white; z-index: 1000; overflow-y: auto; }
+        .print-preview.active { display: block; }
+        .print-preview-content { max-width: 8.5in; margin: 0.5in auto; padding: 0.5in; background: white; }
+        .print-preview-header { text-align: center; margin-bottom: 20px; }
+        .print-preview-header h2 { margin-bottom: 10px; }
+        .print-close { position: fixed; top: 10px; right: 10px; padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; z-index: 1001; }
+        .print-close:hover { background: #c82333; }
+        @media print {
+            body { background: white; }
+            .container { width: 100%; max-width: 100%; box-shadow: none; margin: 0; padding: 0; }
+            .filters, .print-btn { display: none; }
+            .table-wrapper { overflow-x: visible; }
+            table { page-break-inside: avoid; }
+            tr { page-break-inside: avoid; }
+        }
     </style>
 </head>
 <body>
@@ -58,6 +75,7 @@
                 <option value="by_date">Group by Date</option>
             </select>
             <button onclick="generateReport()">Generate Report</button>
+            <button class="print-btn" onclick="showPrintPreview()">Print Preview</button>
         </div>
 
         <div class="table-wrapper">
@@ -83,6 +101,37 @@
             <div class="totals">
                 <p><strong>Total Hours:</strong> <span id="totalHours">0</span></p>
                 <p><strong>Total Entries:</strong> <span id="totalEntries">0</span></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="print-preview" id="printPreview">
+        <button class="print-close" onclick="closePrintPreview()">Close Preview</button>
+        <div class="print-preview-content">
+            <div class="print-preview-header">
+                <h2>Timesheet Report</h2>
+                <p id="printDate"></p>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Job #</th>
+                        <th>Job Name</th>
+                        <th>Hours</th>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="printEntries"></tbody>
+            </table>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #ddd;">
+                <p><strong>Total Hours:</strong> <span id="printTotalHours">0</span></p>
+                <p><strong>Total Entries:</strong> <span id="printTotalEntries">0</span></p>
+            </div>
+            <div style="margin-top: 40px; text-align: center;">
+                <button class="print-btn" onclick="window.print()">Print</button>
             </div>
         </div>
     </div>
@@ -218,6 +267,26 @@
             const totalHours = entries.reduce((sum, e) => sum + e.hours, 0);
             document.getElementById('totalHours').textContent = totalHours;
             document.getElementById('totalEntries').textContent = entries.length;
+        }
+
+        function showPrintPreview() {
+            const printEntries = document.getElementById('printEntries');
+            const entries = document.getElementById('entries');
+
+            printEntries.innerHTML = entries.innerHTML;
+
+            const totalHours = document.getElementById('totalHours').textContent;
+            const totalEntries = document.getElementById('totalEntries').textContent;
+
+            document.getElementById('printTotalHours').textContent = totalHours;
+            document.getElementById('printTotalEntries').textContent = totalEntries;
+            document.getElementById('printDate').textContent = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+            document.getElementById('printPreview').classList.add('active');
+        }
+
+        function closePrintPreview() {
+            document.getElementById('printPreview').classList.remove('active');
         }
 
         loadEntries();
