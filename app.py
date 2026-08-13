@@ -108,12 +108,17 @@ def delete_entry(entry_id):
 
 @app.route('/api/report', methods=['GET'])
 def get_report():
+    employee_name = request.args.get('employee_name')
     job_number = request.args.get('job_number')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
     unbilled_only = request.args.get('unbilled_only', 'false').lower() == 'true'
+    report_type = request.args.get('report_type', 'flat')  # flat, by_employee, by_job, by_date
 
     query = Timesheet.query
+
+    if employee_name:
+        query = query.filter_by(employee_name=employee_name)
 
     if job_number:
         query = query.filter_by(job_number=job_number)
@@ -145,7 +150,38 @@ def get_report():
         })
         total_hours += entry.hours
 
-    return jsonify({'entries': result, 'total_hours': total_hours})
+    grouped = None
+    if report_type == 'by_employee':
+        grouped = {}
+        for entry in result:
+            emp = entry['employee']
+            if emp not in grouped:
+                grouped[emp] = {'entries': [], 'total_hours': 0}
+            grouped[emp]['entries'].append(entry)
+            grouped[emp]['total_hours'] += entry['hours']
+    elif report_type == 'by_job':
+        grouped = {}
+        for entry in result:
+            job = entry['job_number']
+            if job not in grouped:
+                grouped[job] = {'entries': [], 'total_hours': 0, 'job_name': entry['job_name']}
+            grouped[job]['entries'].append(entry)
+            grouped[job]['total_hours'] += entry['hours']
+    elif report_type == 'by_date':
+        grouped = {}
+        for entry in result:
+            date = entry['date']
+            if date not in grouped:
+                grouped[date] = {'entries': [], 'total_hours': 0}
+            grouped[date]['entries'].append(entry)
+            grouped[date]['total_hours'] += entry['hours']
+
+    return jsonify({
+        'entries': result,
+        'total_hours': total_hours,
+        'grouped': grouped,
+        'report_type': report_type
+    })
 
 if __name__ == '__main__':
     load_jobs()

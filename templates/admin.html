@@ -29,6 +29,8 @@
         .unbilled { background: #fff3cd; color: #856404; }
         .billed { background: #d4edda; color: #155724; }
         .totals { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 4px; }
+        .group-header { background: #e8f4f8 !important; font-weight: bold !important; padding: 12px !important; }
+        .filters select { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -36,6 +38,12 @@
         <h1>Timesheet Admin</h1>
 
         <div class="filters">
+            <select id="employeeFilter">
+                <option value="">All Employees</option>
+                <option value="Brian Clark">Brian Clark</option>
+                <option value="Rolfe Haigler">Rolfe Haigler</option>
+                <option value="Dylan Williams">Dylan Williams</option>
+            </select>
             <input type="text" id="jobFilter" placeholder="Job Number">
             <input type="date" id="startDate" placeholder="Start Date">
             <input type="date" id="endDate" placeholder="End Date">
@@ -43,6 +51,12 @@
                 <input type="checkbox" id="unbilledOnly">
                 Unbilled Only
             </label>
+            <select id="reportType">
+                <option value="flat">Flat List</option>
+                <option value="by_employee">Group by Employee</option>
+                <option value="by_job">Group by Job</option>
+                <option value="by_date">Group by Date</option>
+            </select>
             <button onclick="generateReport()">Generate Report</button>
         </div>
 
@@ -79,16 +93,20 @@
         }
 
         function generateReport() {
+            const employee = document.getElementById('employeeFilter').value;
             const job = document.getElementById('jobFilter').value;
             const start = document.getElementById('startDate').value;
             const end = document.getElementById('endDate').value;
             const unbilled = document.getElementById('unbilledOnly').checked;
+            const reportType = document.getElementById('reportType').value;
 
             let url = '/api/report?';
-            if (job) url += 'job_number=' + job + '&';
+            if (employee) url += 'employee_name=' + encodeURIComponent(employee) + '&';
+            if (job) url += 'job_number=' + encodeURIComponent(job) + '&';
             if (start) url += 'start_date=' + start + '&';
             if (end) url += 'end_date=' + end + '&';
             if (unbilled) url += 'unbilled_only=true&';
+            url += 'report_type=' + reportType + '&';
 
             fetch(url)
                 .then(r => r.json())
@@ -96,32 +114,80 @@
                     const tbody = document.getElementById('entries');
                     tbody.innerHTML = '';
 
-                    data.entries.forEach(entry => {
-                        const row = tbody.insertRow();
-                        row.innerHTML = `
-                            <td>${entry.employee}</td>
-                            <td>${entry.job_number}</td>
-                            <td>${entry.job_name}</td>
-                            <td>${entry.hours}</td>
-                            <td>${entry.date}</td>
-                            <td>${entry.description}</td>
-                            <td>
-                                <span class="status-badge ${entry.is_billed ? 'billed' : 'unbilled'}">
-                                    ${entry.is_billed ? 'BILLED' : 'UNBILLED'}
-                                </span>
-                            </td>
-                            <td>
-                                <button class="bill-btn ${entry.is_billed ? 'billed' : ''}" onclick="toggleBill(${entry.id})">
-                                    ${entry.is_billed ? 'Mark UNBILLED' : 'Mark BILLED'}
-                                </button>
-                                <button class="delete-btn" onclick="deleteEntry(${entry.id})">Delete</button>
-                            </td>
-                        `;
-                    });
+                    if (data.report_type === 'flat') {
+                        renderFlatReport(data.entries, tbody);
+                    } else if (data.grouped) {
+                        renderGroupedReport(data.grouped, data.report_type, tbody);
+                    }
 
                     document.getElementById('totalHours').textContent = data.total_hours;
                     document.getElementById('totalEntries').textContent = data.entries.length;
                 });
+        }
+
+        function renderFlatReport(entries, tbody) {
+            entries.forEach(entry => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${entry.employee}</td>
+                    <td>${entry.job_number}</td>
+                    <td>${entry.job_name}</td>
+                    <td>${entry.hours}</td>
+                    <td>${entry.date}</td>
+                    <td>${entry.description}</td>
+                    <td>
+                        <span class="status-badge ${entry.is_billed ? 'billed' : 'unbilled'}">
+                            ${entry.is_billed ? 'BILLED' : 'UNBILLED'}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="bill-btn ${entry.is_billed ? 'billed' : ''}" onclick="toggleBill(${entry.id})">
+                            ${entry.is_billed ? 'Mark UNBILLED' : 'Mark BILLED'}
+                        </button>
+                        <button class="delete-btn" onclick="deleteEntry(${entry.id})">Delete</button>
+                    </td>
+                `;
+            });
+        }
+
+        function renderGroupedReport(grouped, reportType, tbody) {
+            const labels = {
+                'by_employee': 'Employee',
+                'by_job': 'Job',
+                'by_date': 'Date'
+            };
+            const label = labels[reportType] || 'Group';
+
+            Object.keys(grouped).sort().forEach(key => {
+                const group = grouped[key];
+                const row = tbody.insertRow();
+                row.innerHTML = `<td colspan="8" style="background: #e8f4f8; font-weight: bold; padding-top: 15px; padding-bottom: 15px;">
+                    ${label}: ${reportType === 'by_job' ? key + ' - ' + group.job_name : key} | Hours: ${group.total_hours}
+                </td>`;
+
+                group.entries.forEach(entry => {
+                    const dataRow = tbody.insertRow();
+                    dataRow.innerHTML = `
+                        <td>${entry.employee}</td>
+                        <td>${entry.job_number}</td>
+                        <td>${entry.job_name}</td>
+                        <td>${entry.hours}</td>
+                        <td>${entry.date}</td>
+                        <td>${entry.description}</td>
+                        <td>
+                            <span class="status-badge ${entry.is_billed ? 'billed' : 'unbilled'}">
+                                ${entry.is_billed ? 'BILLED' : 'UNBILLED'}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="bill-btn ${entry.is_billed ? 'billed' : ''}" onclick="toggleBill(${entry.id})">
+                                ${entry.is_billed ? 'Mark UNBILLED' : 'Mark BILLED'}
+                            </button>
+                            <button class="delete-btn" onclick="deleteEntry(${entry.id})">Delete</button>
+                        </td>
+                    `;
+                });
+            });
         }
 
         function toggleBill(entryId) {
