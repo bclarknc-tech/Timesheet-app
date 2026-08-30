@@ -71,6 +71,21 @@ class _ControlHandler(BaseHTTPRequestHandler):
                 _control_callback("release")
             self.send_response(204)
             self.end_headers()
+        elif self.path == "/tap":
+            # Single-button convenience: spawn a thread to emit press->release
+            if _control_callback:
+                def _tap():
+                    try:
+                        _control_callback("press")
+                        import time
+                        time.sleep(0.12)
+                        _control_callback("release")
+                    except Exception:
+                        pass
+                import threading
+                threading.Thread(target=_tap, daemon=True).start()
+            self.send_response(204)
+            self.end_headers()
         else:
             self.send_response(404)
             self.end_headers()
@@ -407,6 +422,17 @@ async def run(open_mic: bool, ptt_key=ptt.PTT_KEY) -> None:
     else:
         ptt_listener = ptt.PTTListener(loop, key=ptt_key)
         ptt_listener.start()
+        # Register the HTTP control callback so external tools (Stream Deck)
+        # can simulate PTT events via HTTP POST /press, /release, or /tap
+        def _http_cb(ev: str) -> None:
+            if not ptt_listener:
+                return
+            if ev == "press":
+                loop.call_soon_threadsafe(ptt_listener.events.put_nowait, ptt.PRESS)
+            elif ev == "release":
+                loop.call_soon_threadsafe(ptt_listener.events.put_nowait, ptt.RELEASE)
+
+        register_control_callback(_http_cb)
 
     # Hide the first-turn prompt-cache toll behind a spoken greeting: the
     # greeting plays immediately while warmup() pays that toll in the
