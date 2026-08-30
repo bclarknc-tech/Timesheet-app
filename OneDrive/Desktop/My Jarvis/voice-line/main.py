@@ -43,6 +43,63 @@ import ptt
 import signals
 import timing
 
+# --- Local HTTP control server -------------------------------------------------
+# Provides simple endpoints the Stream Deck can call to simulate PTT events:
+#   POST http://127.0.0.1:8889/press
+#   POST http://127.0.0.1:8889/release
+# The handler invokes a callback registered by the main event loop that
+# enqueues the matching PTT event into the PTTListener's queue.
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+_control_callback = None
+
+
+def register_control_callback(cb):
+    global _control_callback
+    _control_callback = cb
+
+
+class _ControlHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.path == "/press":
+            if _control_callback:
+                _control_callback("press")
+            self.send_response(204)
+            self.end_headers()
+        elif self.path == "/release":
+            if _control_callback:
+                _control_callback("release")
+            self.send_response(204)
+            self.end_headers()
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, format, *args):
+        # silence default logging to stderr
+        return
+
+
+def start_control_server_in_thread(host="127.0.0.1", port=8889):
+    try:
+        server = HTTPServer((host, port), _ControlHandler)
+    except OSError:
+        # Already running or port in use - skip starting a second server
+        return None
+
+    def _serve():
+        try:
+            server.serve_forever()
+        except Exception:
+            pass
+
+    t = __import__("threading").Thread(target=_serve, daemon=True)
+    t.start()
+    return server
+
+# Start control server early so Stream Deck can call it immediately
+_start_control_server = start_control_server_in_thread()
+
 def _resolve_identity_cwd() -> str:
     r"""The folder CLAUDE.md and the vault live in - Jarvis's identity.
 
