@@ -24,7 +24,7 @@ from pynput import keyboard
 
 # Default PTT keys: accept Right Ctrl, Left Ctrl, or Space so hardware
 # like Stream Decks can be mapped to any of them without code changes.
-PTT_KEY = {keyboard.Key.ctrl_r, keyboard.Key.ctrl_l, keyboard.Key.space}
+PTT_KEY = {keyboard.Key.ctrl_r, keyboard.Key.ctrl_l, keyboard.Key.space, keyboard.Key.menu}
 
 PRESS = "press"
 RELEASE = "release"
