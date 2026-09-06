@@ -1,5 +1,5 @@
 """
-Jarvis Master Node Daemon (Runs on Spare PC: 192.168.86.70)
+Trend & Product Scanner Daemon (Runs on Spare PC: 192.168.86.70)
 Provides a secure local API + Live Web Dashboard for task execution, 
 FBA scanning, multi-source market trend tracking, video clipping, and 12-hour continuous scanning with 5-minute sync pauses.
 """
@@ -34,7 +34,7 @@ DASHBOARD_HTML = """
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Jarvis Master Node - Live Dashboard</title>
+    <title>Trend & Product Scanner - Live Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <meta http-equiv="refresh" content="5">
 </head>
@@ -42,7 +42,7 @@ DASHBOARD_HTML = """
     <div class="max-w-5xl mx-auto">
         <header class="flex justify-between items-center mb-8 pb-4 border-b border-slate-800">
             <div>
-                <h1 class="text-3xl font-extrabold text-white">⚡ Jarvis Master Node</h1>
+                <h1 class="text-3xl font-extrabold text-white">⚡ Trend & Product Scanner</h1>
                 <p class="text-slate-400 text-sm">Spare PC Automation Center (192.168.86.70)</p>
             </div>
             <div class="flex items-center gap-3">
@@ -64,7 +64,7 @@ DASHBOARD_HTML = """
             </div>
             <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow">
                 <p class="text-slate-400 text-sm font-medium">Vault Sync</p>
-                <p class="text-2xl font-black text-indigo-400 mt-1">Active (OneDrive)</p>
+                <p class="text-2xl font-black text-indigo-400 mt-1">Active (Jarvis 2.0)</p>
             </div>
         </div>
 
@@ -112,14 +112,13 @@ def background_scheduler():
     while True:
         log_action("[Scheduler] === Starting 12-Hour Continuous Scanning Block ===")
         block_start = time.time()
-        # Scan continuously every 2 minutes for 12 hours (43200 seconds)
         while time.time() - block_start < 43200:
             run_all_scans()
             log_action("[Scheduler] Sleeping 2 minutes before next continuous sweep...")
             time.sleep(120)
             
         log_action("[Scheduler] === 12 Hours Reached. Pausing for 5 minutes for OneDrive sync ===")
-        time.sleep(300) # 5-minute pause for sync
+        time.sleep(300)
 
 @app.route('/dashboard', methods=['GET'])
 def dashboard():
@@ -193,7 +192,7 @@ def clip_video():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
-    log_action("Starting Jarvis Master Node on 0.0.0.0:8899...")
+    log_action("Starting Trend & Product Scanner on 0.0.0.0:8899...")
     sched_thread = threading.Thread(target=background_scheduler, daemon=True)
     sched_thread.start()
     log_action("12-Hour Continuous Scraper Scheduler initialized.")
