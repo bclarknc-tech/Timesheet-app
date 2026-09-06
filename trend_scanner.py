@@ -6,6 +6,7 @@ and drops daily Product Gap Reports straight into your Obsidian Vault.
 import os
 import datetime
 import urllib.request
+import urllib.error
 import json
 import time
 
@@ -37,7 +38,10 @@ def scan_trends():
         url = f"https://www.reddit.com/r/{sub}/hot.json?limit=25"
         req = urllib.request.Request(
             url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*'
+            }
         )
         try:
             with urllib.request.urlopen(req, timeout=10) as response:
@@ -53,9 +57,8 @@ def scan_trends():
                     
                     combined_text = (title + " " + selftext).lower()
                     
-                    # Check for demand or pain point keywords
                     matched_keyword = next((kw for kw in KEYWORDS if kw in combined_text), None)
-                    if matched_keyword or score > 500:
+                    if matched_keyword or score > 400:
                         insights.append({
                             'subreddit': sub,
                             'title': title,
@@ -65,9 +68,8 @@ def scan_trends():
                         })
         except Exception as e:
             print(f"Error fetching r/{sub}: {e}")
-        time.sleep(1) # Be polite to public rate limits
+        time.sleep(2)
         
-    # Sort by engagement score
     insights = sorted(insights, key=lambda x: x['score'], reverse=True)[:15]
     
     date_str = datetime.datetime.now().strftime("%Y-%m-%d")
