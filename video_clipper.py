@@ -1,6 +1,6 @@
 """
-24/7 Automated Video Clipping & 9:16 Vertical Cropper Daemon (Runs on Spare PC: 192.168.86.70)
-Monitors OneDrive input folders for raw source videos (Mobster movies, police cams, podcasts),
+Automated 9:16 Vertical Video Clipper Daemon (Runs on Spare PC: 192.168.86.70)
+Monitors shared network path (M:\Video Clipper) for raw source videos,
 automatically slices them into viral 30-second 9:16 vertical clips, and outputs them ready to post.
 """
 import os
@@ -9,7 +9,8 @@ import subprocess
 import datetime
 import glob
 
-VAULT_BASE = r"C:\Users\bclar\OneDrive\Desktop\Jarvis 2.0\04 - Active Projects\Video Clipper"
+# Shared network path across both PCs
+VAULT_BASE = r"M:\Video Clipper"
 INPUT_DIR = os.path.join(VAULT_BASE, "Input")
 OUTPUT_DIR = os.path.join(VAULT_BASE, "Output")
 PROCESSED_DIR = os.path.join(VAULT_BASE, "Processed")
@@ -70,5 +71,5 @@ def process_videos():
 
 if __name__ == "__main__":
     ensure_dirs()
-    print("Running single video clipper pass...")
+    print(f"Running video clipper monitoring path: {VAULT_BASE}")
     process_videos()

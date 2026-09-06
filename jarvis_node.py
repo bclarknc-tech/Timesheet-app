@@ -1,7 +1,7 @@
 """
 Trend & Product Scanner & Video Clipper Daemon (Runs on Spare PC: 192.168.86.70)
 Provides a secure local API + Live Web Dashboard for task execution, 
-FBA scanning, multi-source market trend tracking, and automated 24/7 video clipping with file queue status.
+FBA scanning, multi-source market trend tracking, and automated 24/7 video clipping on M:\Video Clipper.
 """
 from flask import Flask, request, jsonify, render_template_string
 import subprocess
@@ -31,7 +31,7 @@ def verify_auth():
     return True
 
 def get_clipper_status():
-    vault_base = r"C:\Users\bclar\OneDrive\Desktop\Jarvis 2.0\04 - Active Projects\Video Clipper"
+    vault_base = r"M:\Video Clipper"
     input_dir = os.path.join(vault_base, "Input")
     output_dir = os.path.join(vault_base, "Output")
     
@@ -81,7 +81,7 @@ DASHBOARD_HTML = """
         <!-- Video Clipper Queue Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl">
-                <h2 class="text-lg font-bold mb-4 text-white flex items-center gap-2">📥 Input Queue (Waiting to Clip)</h2>
+                <h2 class="text-lg font-bold mb-4 text-white flex items-center gap-2">📥 Input Queue (M:\\Video Clipper)</h2>
                 <div class="space-y-4">
                     {% for sub, files in queues.items() %}
                         <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-700/50">
@@ -177,7 +177,7 @@ def background_scheduler():
             log_action("[Scheduler] Sweeps complete. Sleeping 2 minutes before next check...")
             time.sleep(120)
             
-        log_action("[Scheduler] === 12 Hours Reached. Pausing for 5 minutes for OneDrive sync ===")
+        log_action("[Scheduler] === 12 Hours Reached. Pausing for 5 minutes for sync ===")
         time.sleep(300)
 
 @app.route('/dashboard', methods=['GET'])
@@ -203,6 +203,6 @@ if __name__ == '__main__':
     log_action("Starting Trend & Product Scanner on 0.0.0.0:8899...")
     sched_thread = threading.Thread(target=background_scheduler, daemon=True)
     sched_thread.start()
-    log_action("24/7 Automation & Video Clipping Daemon initialized with Queue GUI.")
+    log_action("24/7 Automation & Video Clipping Daemon initialized on M:\\Video Clipper.")
     
     app.run(host='0.0.0.0', port=8899)
