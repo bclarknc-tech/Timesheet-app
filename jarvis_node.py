@@ -1,13 +1,14 @@
 """
 Jarvis Master Node Daemon (Runs on Spare PC: 192.168.86.70)
 Provides a secure local API + Live Web Dashboard for task execution, 
-FBA scanning, market trend tracking, and automated video clipping.
+FBA scanning, market trend tracking, automated video clipping, and 24/7 background cron scheduling.
 """
 from flask import Flask, request, jsonify, render_template_string
 import subprocess
 import os
 import datetime
 import threading
+import time
 import glob
 
 app = Flask(__name__)
@@ -20,7 +21,7 @@ def log_action(msg):
     entry = f"[{timestamp}] {msg}"
     print(entry)
     EXEC_LOGS.append(entry)
-    if len(EXEC_LOGS) > 100:
+    if len(EXEC_LOGS) > 150:
         EXEC_LOGS.pop(0)
 
 def verify_auth():
@@ -47,7 +48,7 @@ DASHBOARD_HTML = """
             </div>
             <div class="flex items-center gap-3">
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    ● Node Online
+                    ● 24/7 Autonomous Mode Active
                 </span>
                 <button onclick="triggerScan()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-sm cursor-pointer transition">Run Manual Scan</button>
             </div>
@@ -59,8 +60,8 @@ DASHBOARD_HTML = """
                 <p class="text-2xl font-black text-white mt-1">192.168.86.70</p>
             </div>
             <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow">
-                <p class="text-slate-400 text-sm font-medium">Active Services</p>
-                <p class="text-2xl font-black text-emerald-400 mt-1">FBA Scraper, Trend Spotter, Video Clipper</p>
+                <p class="text-slate-400 text-sm font-medium">Autonomous Schedule</p>
+                <p class="text-2xl font-black text-emerald-400 mt-1">Every 12 Hours</p>
             </div>
             <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow">
                 <p class="text-slate-400 text-sm font-medium">Vault Sync</p>
@@ -70,10 +71,10 @@ DASHBOARD_HTML = """
 
         <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden shadow-xl mb-8">
             <div class="px-6 py-4 border-b border-slate-700 font-bold text-lg text-white flex justify-between items-center">
-                <span>🖥️ Live Execution Logs</span>
+                <span>🖥️ Live Execution & Autonomous Logs</span>
                 <span class="text-xs text-slate-400 font-normal">Auto-refreshing every 5s</span>
             </div>
-            <div class="p-6 bg-slate-950 font-mono text-xs text-emerald-400 h-72 overflow-y-auto space-y-1">
+            <div class="p-6 bg-slate-950 font-mono text-xs text-emerald-400 h-80 overflow-y-auto space-y-1">
                 {% for log in logs %}
                     <div>{{ log }}</div>
                 {% endfor %}
@@ -91,6 +92,34 @@ DASHBOARD_HTML = """
 </html>
 """
 
+def run_all_scans():
+    log_action("[Cron] Starting scheduled 24/7 market & FBA scans...")
+    try:
+        res1 = subprocess.run("python fba_scanner.py", shell=True, capture_output=True, text=True, cwd=os.path.dirname(__file__))
+        for line in res1.stdout.splitlines():
+            if line.strip(): log_action(f"  {line}")
+        log_action("[Cron] FBA scan completed successfully.")
+    except Exception as e:
+        log_action(f"[Cron] FBA scan error: {e}")
+        
+    try:
+        res2 = subprocess.run("python trend_scanner.py", shell=True, capture_output=True, text=True, cwd=os.path.dirname(__file__))
+        for line in res2.stdout.splitlines():
+            if line.strip(): log_action(f"  {line}")
+        log_action("[Cron] Trend scan completed successfully.")
+    except Exception as e:
+        log_action(f"[Cron] Trend scan error: {e}")
+
+def background_scheduler():
+    # Run once shortly after startup
+    time.sleep(10)
+    run_all_scans()
+    
+    # Then loop every 12 hours (43200 seconds)
+    while True:
+        time.sleep(43200)
+        run_all_scans()
+
 @app.route('/dashboard', methods=['GET'])
 def dashboard():
     return render_template_string(DASHBOARD_HTML, logs=reversed(EXEC_LOGS))
@@ -105,21 +134,8 @@ def health():
 
 @app.route('/api/trigger-scan', methods=['POST'])
 def trigger_scan():
-    log_action("Manual scan triggered via Live Dashboard.")
-    def run_scans():
-        try:
-            subprocess.run("python fba_scanner.py", shell=True, capture_output=True, text=True)
-            log_action("FBA scan completed successfully.")
-        except Exception as e:
-            log_action(f"FBA scan error: {e}")
-            
-        try:
-            subprocess.run("python trend_scanner.py", shell=True, capture_output=True, text=True)
-            log_action("Trend scan completed successfully.")
-        except Exception as e:
-            log_action(f"Trend scan error: {e}")
-            
-    threading.Thread(target=run_scans).start()
+    log_action("Manual scan requested via Live Dashboard.")
+    threading.Thread(target=run_all_scans).start()
     return jsonify({'success': True, 'message': 'Scan tasks dispatched in background.'})
 
 @app.route('/exec', methods=['POST'])
@@ -155,13 +171,11 @@ def clip_video():
     input_file = data.get('input_file')
     output_file = data.get('output_file', 'viral_short.mp4')
     start_time = data.get('start', '00:00:00')
-    duration = data.get('duration', '30') # 30 second viral clip
+    duration = data.get('duration', '30')
     
     if not input_file or not os.path.exists(input_file):
         return jsonify({'success': False, 'error': 'Input video file not found'}), 400
         
-    # FFmpeg 9:16 vertical crop filter for TikTok / Reels / Shorts:
-    # scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920
     cmd = f'ffmpeg -y -ss {start_time} -i "{input_file}" -t {duration} -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -preset fast -c:a aac "{output_file}"'
     
     log_action(f"Clipping video: {input_file} -> {output_file}")
@@ -179,4 +193,9 @@ def clip_video():
 
 if __name__ == '__main__':
     log_action("Starting Jarvis Master Node on 0.0.0.0:8899...")
+    # Start background scheduler daemon thread
+    sched_thread = threading.Thread(target=background_scheduler, daemon=True)
+    sched_thread.start()
+    log_action("24/7 Autonomous Scheduler initialized (Runs every 12 hours).")
+    
     app.run(host='0.0.0.0', port=8899)
