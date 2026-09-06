@@ -1,6 +1,6 @@
 """
 Main PC Auto-Pusher (Runs on Main PC: OfficePC)
-Monitors M:\Video Clipper\Input\ and automatically pushes any new raw source videos
+Explicitly monitors M:\Video Clipper\Input\ on the Main PC and automatically pushes any new raw source videos
 over the local network to the Spare PC (192.168.86.70:8899) for automated clipping.
 """
 import os
@@ -14,7 +14,7 @@ SECRET_TOKEN = "jarvis-local-master-2026"
 
 def check_and_push():
     if not os.path.exists(LOCAL_BASE):
-        print(f"[Pusher] Local directory not found: {LOCAL_BASE}")
+        print(f"[Pusher] Waiting for Main PC folder: {LOCAL_BASE}")
         return
         
     subfolders = ["TikTok_Mobsters", "YouTube_PoliceCams", "General"]
@@ -30,7 +30,7 @@ def check_and_push():
             
         for video_path in video_files:
             filename = os.path.basename(video_path)
-            print(f"[Pusher] Found new file to push: {filename} ({sub})")
+            print(f"[Pusher] Found new file in Main PC M: drive: {filename} ({sub})")
             
             try:
                 with open(video_path, 'rb') as f:
@@ -38,12 +38,11 @@ def check_and_push():
                     data = {'subfolder': sub}
                     headers = {'Authorization': f"Bearer {SECRET_TOKEN}"}
                     
-                    print(f"[Pusher] Uploading {filename} to Spare PC...")
+                    print(f"[Pusher] Uploading {filename} to Spare PC over local network...")
                     res = requests.post(SPARE_PC_URL, files=files, data=data, headers=headers, timeout=300)
                     
                     if res.status_code == 200 and res.json().get('success'):
-                        print(f"[Pusher] Successfully pushed {filename}! Moving to local archive...")
-                        # Move to processed on main PC
+                        print(f"[Pusher] Successfully pushed {filename}! Archiving on M: drive...")
                         archive_dir = r"M:\Video Clipper\Processed"
                         os.makedirs(os.path.join(archive_dir, sub), exist_ok=True)
                         dest = os.path.join(archive_dir, sub, filename)
@@ -58,10 +57,9 @@ def check_and_push():
 if __name__ == "__main__":
     print("==================================================")
     print(" Main PC Auto-Pusher Started")
-    print(f" Watching: {LOCAL_BASE}")
+    print(f" Explicitly Monitoring Main PC: {LOCAL_BASE}")
     print("==================================================")
     
-    # Create processed dir if missing
     os.makedirs(r"M:\Video Clipper\Processed", exist_ok=True)
     
     while True:
@@ -69,4 +67,4 @@ if __name__ == "__main__":
             check_and_push()
         except Exception as e:
             print(f"Pusher loop error: {e}")
-        time.sleep(10) # Check every 10 seconds for new files on M: drive
+        time.sleep(10)
