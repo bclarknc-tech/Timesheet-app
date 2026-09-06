@@ -274,6 +274,18 @@ def update_and_restart():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/install-ytdlp', methods=['POST'])
+def install_ytdlp():
+    if not verify_auth():
+        return jsonify({'error': 'Unauthorized'}), 401
+    log_action("Installing yt-dlp on spare PC...")
+    try:
+        res = subprocess.run("pip install yt-dlp", shell=True, capture_output=True, text=True, cwd=os.path.dirname(__file__))
+        log_action(f"pip install output: {res.stdout} {res.stderr}")
+        return jsonify({'success': True, 'output': res.stdout})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 if __name__ == '__main__':
     log_action("Starting Trend & Product Scanner on 0.0.0.0:8899...")
     ensure_clipper_dirs()
