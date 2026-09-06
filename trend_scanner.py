@@ -1,7 +1,7 @@
 """
 24/7 Multi-Source Market Trend & Consumer Demand Spotter (Runs on Spare PC: 192.168.86.70)
 Aggregates live consumer trends, product launches, and demand signals across multiple public RSS feeds,
-and logs new market gaps directly into your Obsidian Vault.
+and logs new market gaps directly into your Obsidian Vault (Jarvis 2.0).
 """
 import os
 import datetime
@@ -20,7 +20,7 @@ def scan_trends():
     print("[Trend Scanner] Starting multi-source market trend sweep...")
     time.sleep(1)
     
-    vault_dir = os.path.expanduser(r"~\OneDrive\Desktop\My Jarvis\04 - Active Projects\Market Trends")
+    vault_dir = os.path.expanduser(r"~\OneDrive\Desktop\Jarvis 2.0\04 - Active Projects\Market Trends")
     os.makedirs(vault_dir, exist_ok=True)
     
     history_path = os.path.join(vault_dir, "trend_history.json")
@@ -45,7 +45,6 @@ def scan_trends():
                 xml_data = response.read()
                 root = ET.fromstring(xml_data)
                 
-                # Handle RSS vs Atom namespaces
                 items = root.findall('.//item') or root.findall('.//{http://www.w3.org/2005/Atom}entry')
                 for item in items[:10]:
                     title_elem = item.find('title') or item.find('{http://www.w3.org/2005/Atom}title')
@@ -61,10 +60,9 @@ def scan_trends():
             print(f"Error fetching {feed['name']}: {e}")
         time.sleep(1)
 
-    # Save history
     try:
         with open(history_path, 'w', encoding='utf-8') as f:
-            json.dump(list(seen_trends)[-500:], f, indent=2) # keep last 500
+            json.dump(list(seen_trends)[-500:], f, indent=2)
     except:
         pass
 
@@ -75,7 +73,6 @@ def scan_trends():
     date_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
     report_path = os.path.join(vault_dir, f"Market_Trend_Spotted_{date_str}.md")
     
-    # Atomic write (write to temp file then rename)
     temp_path = report_path + ".tmp"
     with open(temp_path, "w", encoding="utf-8") as f:
         f.write(f"# 📈 New Market Trends & Product Signals — {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")

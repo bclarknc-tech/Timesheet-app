@@ -8,7 +8,7 @@ def scan_niches():
     print("[FBA Scanner] Initializing connection to product databases...")
     time.sleep(1.5)
     
-    vault_dir = r"C:\Users\bclar\OneDrive\Desktop\My Jarvis\04 - Active Projects\FBA"
+    vault_dir = r"C:\Users\bclar\OneDrive\Desktop\Jarvis 2.0\04 - Active Projects\FBA"
     import_dir = os.path.join(vault_dir, "Imports")
     os.makedirs(import_dir, exist_ok=True)
     
@@ -54,18 +54,23 @@ def scan_niches():
         print(f"Error saving history: {e}")
 
     if not new_qualified:
-        print("[FBA Scanner] Scan complete. No brand new opportunities found in this cycle (all existing items already logged).")
+        print("[FBA Scanner] Scan complete. No brand new opportunities found in this cycle.")
         return
 
     date_str = datetime.datetime.now().strftime("%Y-%m-%d")
     report_path = os.path.join(vault_dir, f"FBA_New_Discoveries_{date_str}.md")
     
-    with open(report_path, "w", encoding="utf-8") as f:
+    temp_path = report_path + ".tmp"
+    with open(temp_path, "w", encoding="utf-8") as f:
         f.write(f"# 🚨 New FBA Opportunities Discovered — {date_str}\n\n")
         f.write("**Criteria:** Rule of Threes (Price $15–$30, Sales ≥ 300/mo, Reviews < 200).\n\n")
         for q in new_qualified:
             f.write(f"- **{q['product']}** | Price: ${q['price']} | Est. Sales: {q['est_sales']}/mo | Reviews: {q['reviews']}\n")
             
+    if os.path.exists(report_path):
+        os.remove(report_path)
+    os.rename(temp_path, report_path)
+    
     print(f"[FBA Scanner] Scan complete! Saved {len(new_qualified)} BRAND NEW opportunities to {report_path}")
 
 if __name__ == "__main__":
