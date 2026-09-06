@@ -1,6 +1,6 @@
 """
 24/7 Autonomous Video Clipping Daemon (Runs on Spare PC: 192.168.86.70)
-Monitors Jarvis 2.0 Vault OneDrive folder for raw source videos,
+Monitors Main PC Network Share (\\192.168.86.62\VideoClipper) for raw source video files,
 automatically slices them into viral 30-second 9:16 vertical clips, and deposits them into Output/.
 """
 import os
@@ -9,15 +9,19 @@ import subprocess
 import datetime
 import glob
 
-VAULT_BASE = r"C:\Users\bclar\OneDrive\Desktop\Jarvis 2.0\Video Clipper"
+# Main PC Network Share (OfficePC IP: 192.168.86.62)
+VAULT_BASE = r"\\192.168.86.62\VideoClipper"
 INPUT_DIR = os.path.join(VAULT_BASE, "Input")
 OUTPUT_DIR = os.path.join(VAULT_BASE, "Output")
 PROCESSED_DIR = os.path.join(VAULT_BASE, "Processed")
 
 def ensure_dirs():
-    for d in [INPUT_DIR, OUTPUT_DIR, PROCESSED_DIR]:
-        for sub in ["TikTok_Mobsters", "YouTube_PoliceCams", "General"]:
-            os.makedirs(os.path.join(d, sub), exist_ok=True)
+    try:
+        for d in [INPUT_DIR, OUTPUT_DIR, PROCESSED_DIR]:
+            for sub in ["TikTok_Mobsters", "YouTube_PoliceCams", "General"]:
+                os.makedirs(os.path.join(d, sub), exist_ok=True)
+    except Exception as e:
+        print(f"[Warning] Network share not accessible yet: {e}")
 
 def process_videos():
     ensure_dirs()
@@ -28,6 +32,9 @@ def process_videos():
         out_sub = os.path.join(OUTPUT_DIR, sub)
         proc_sub = os.path.join(PROCESSED_DIR, sub)
         
+        if not os.path.exists(in_sub):
+            continue
+            
         video_files = []
         for ext in ["*.mp4", "*.mov", "*.mkv", "*.avi"]:
             video_files.extend(glob.glob(os.path.join(in_sub, ext)))
@@ -71,8 +78,8 @@ def process_videos():
 if __name__ == "__main__":
     ensure_dirs()
     print(f"==================================================")
-    print(f" 24/7 Autonomous Video Clipper Daemon Started")
-    print(f" Monitoring Vault Path: {INPUT_DIR}")
+    print(f" 24/7 Autonomous Network Video Clipper Daemon")
+    print(f" Monitoring Share: {INPUT_DIR}")
     print(f"==================================================")
     
     while True:
