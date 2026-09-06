@@ -1,7 +1,8 @@
 """
 24/7 Autonomous Video Clipping Daemon (Runs on Spare PC: 192.168.86.70)
-Monitors Main PC Network Share IP with space (\\192.168.86.62\Video Clipper) for raw source video files,
+Monitors local OneDrive Vault path (Jarvis 2.0\Video Clipper) for raw source video files,
 automatically slices them into viral 30-second 9:16 vertical clips, and deposits them into Output/.
+Requires zero network shares — OneDrive handles all file syncing automatically in the background.
 """
 import os
 import time
@@ -9,19 +10,16 @@ import subprocess
 import datetime
 import glob
 
-# Main PC Network Share with space (`\\192.168.86.62\Video Clipper`)
-VAULT_BASE = r"\\192.168.86.62\Video Clipper"
+# Local OneDrive Vault path (automatically synced across both PCs by OneDrive)
+VAULT_BASE = r"C:\Users\bclar\OneDrive\Desktop\Jarvis 2.0\Video Clipper"
 INPUT_DIR = os.path.join(VAULT_BASE, "Input")
 OUTPUT_DIR = os.path.join(VAULT_BASE, "Output")
 PROCESSED_DIR = os.path.join(VAULT_BASE, "Processed")
 
 def ensure_dirs():
-    try:
-        for d in [INPUT_DIR, OUTPUT_DIR, PROCESSED_DIR]:
-            for sub in ["TikTok_Mobsters", "YouTube_PoliceCams", "General"]:
-                os.makedirs(os.path.join(d, sub), exist_ok=True)
-    except Exception as e:
-        print(f"[Warning] Network share not accessible yet: {e}")
+    for d in [INPUT_DIR, OUTPUT_DIR, PROCESSED_DIR]:
+        for sub in ["TikTok_Mobsters", "YouTube_PoliceCams", "General"]:
+            os.makedirs(os.path.join(d, sub), exist_ok=True)
 
 def process_videos():
     ensure_dirs()
@@ -78,8 +76,8 @@ def process_videos():
 if __name__ == "__main__":
     ensure_dirs()
     print(f"==================================================")
-    print(f" 24/7 Autonomous Network Video Clipper Daemon")
-    print(f" Monitoring Share: {INPUT_DIR}")
+    print(f" 24/7 Autonomous OneDrive Video Clipper Daemon")
+    print(f" Monitoring Vault: {INPUT_DIR}")
     print(f"==================================================")
     
     while True:
