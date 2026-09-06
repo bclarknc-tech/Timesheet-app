@@ -9,6 +9,7 @@ import datetime
 import threading
 import time
 import glob
+import sys
 
 app = Flask(__name__)
 SECRET_TOKEN = "jarvis-local-master-2026"
@@ -256,6 +257,22 @@ def upload_video():
 
     threading.Thread(target=clip_pushed_video).start()
     return jsonify({'success': True, 'message': f'File {file.filename} received and queued for clipping.'})
+
+@app.route('/api/update-and-restart', methods=['POST'])
+def update_and_restart():
+    if not verify_auth():
+        return jsonify({'error': 'Unauthorized'}), 401
+    log_action("Update and restart requested. Pulling from git...")
+    try:
+        subprocess.run("git pull origin main", shell=True, check=True, cwd=os.path.dirname(__file__))
+        log_action("Git pull successful. Restarting process...")
+        def do_restart():
+            time.sleep(1)
+            os.execv(sys.executable, ['python'] + sys.argv)
+        threading.Thread(target=do_restart).start()
+        return jsonify({'success': True, 'message': 'Pull successful, restarting daemon...'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     log_action("Starting Trend & Product Scanner on 0.0.0.0:8899...")
