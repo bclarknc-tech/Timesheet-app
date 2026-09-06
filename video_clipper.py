@@ -1,7 +1,8 @@
 """
-Automated 9:16 Vertical Video Clipper Daemon (Runs on Spare PC: 192.168.86.70)
-Monitors shared network path (M:\Video Clipper) for raw source videos,
-automatically slices them into viral 30-second 9:16 vertical clips, and outputs them ready to post.
+24/7 Autonomous Video Clipping Daemon (Runs on Spare PC: 192.168.86.70)
+Continuously monitors M:\Video Clipper\Input\ for new raw source videos,
+automatically slices them into viral 30-second 9:16 vertical clips, and deposits them into Output/.
+Runs completely autonomously 24/7.
 """
 import os
 import time
@@ -9,7 +10,6 @@ import subprocess
 import datetime
 import glob
 
-# Shared network path across both PCs
 VAULT_BASE = r"M:\Video Clipper"
 INPUT_DIR = os.path.join(VAULT_BASE, "Input")
 OUTPUT_DIR = os.path.join(VAULT_BASE, "Output")
@@ -36,7 +36,7 @@ def process_videos():
         for video_path in video_files:
             filename = os.path.basename(video_path)
             name_no_ext, _ = os.path.splitext(filename)
-            print(f"[Video Clipper] Found new source video: {filename} in {sub}")
+            print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Video Clipper] Found new source video: {filename} in {sub}")
             
             timestamps = [0, 60, 120]
             
@@ -47,7 +47,7 @@ def process_videos():
                 if os.path.exists(output_path):
                     continue
                     
-                print(f"[Video Clipper] Generating 9:16 vertical clip #{i} starting at {ts}s...")
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Video Clipper] Generating 9:16 vertical clip #{i} starting at {ts}s...")
                 
                 cmd = f'ffmpeg -y -ss {ts} -i "{video_path}" -t 30 -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -preset fast -c:a aac "{output_path}"'
                 
@@ -65,11 +65,20 @@ def process_videos():
                 if os.path.exists(dest_processed):
                     os.remove(dest_processed)
                 os.rename(video_path, dest_processed)
-                print(f"[Video Clipper] Moved source to processed folder: {filename}")
+                print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [Video Clipper] Moved source to processed folder: {filename}")
             except Exception as e:
                 print(f"Error moving processed file: {e}")
 
 if __name__ == "__main__":
     ensure_dirs()
-    print(f"Running video clipper monitoring path: {VAULT_BASE}")
-    process_videos()
+    print(f"==================================================")
+    print(f" 24/7 Autonomous Video Clipper Daemon Started")
+    print(f" Monitoring: {INPUT_DIR}")
+    print(f"==================================================")
+    
+    while True:
+        try:
+            process_videos()
+        except Exception as e:
+            print(f"Daemon error: {e}")
+        time.sleep(30) # Poll every 30 seconds for new files
