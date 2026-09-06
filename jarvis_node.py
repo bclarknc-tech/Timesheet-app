@@ -1,7 +1,7 @@
 """
 Jarvis Master Node Daemon (Runs on Spare PC: 192.168.86.70)
 Provides a secure local API + Live Web Dashboard for task execution, 
-FBA scanning, market trend tracking, automated video clipping, and 24/7 background scheduler (runs every 4 hours).
+FBA scanning, multi-source market trend tracking, video clipping, and 10-minute autonomous cycles.
 """
 from flask import Flask, request, jsonify, render_template_string
 import subprocess
@@ -9,7 +9,6 @@ import os
 import datetime
 import threading
 import time
-import glob
 
 app = Flask(__name__)
 SECRET_TOKEN = "jarvis-local-master-2026"
@@ -47,8 +46,8 @@ DASHBOARD_HTML = """
                 <p class="text-slate-400 text-sm">Spare PC Automation Center (192.168.86.70)</p>
             </div>
             <div class="flex items-center gap-3">
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    ● Autonomous Mode Active (Every 4 Hours)
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
+                    ● Fast-Cycle Mode (Every 10 Mins)
                 </span>
                 <button onclick="triggerScan()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-sm cursor-pointer transition">Run Immediate Scan</button>
             </div>
@@ -61,11 +60,11 @@ DASHBOARD_HTML = """
             </div>
             <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow">
                 <p class="text-slate-400 text-sm font-medium">Scan Frequency</p>
-                <p class="text-2xl font-black text-emerald-400 mt-1">Every 4 Hours</p>
+                <p class="text-2xl font-black text-emerald-400 mt-1">Every 10 Minutes</p>
             </div>
             <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow">
                 <p class="text-slate-400 text-sm font-medium">Vault Sync</p>
-                <p class="text-2xl font-black text-indigo-400 mt-1">Active (OneDrive Safe)</p>
+                <p class="text-2xl font-black text-indigo-400 mt-1">Active (Atomic Safe)</p>
             </div>
         </div>
 
@@ -93,12 +92,12 @@ DASHBOARD_HTML = """
 """
 
 def run_all_scans():
-    log_action("[Worker] Starting scheduled market & FBA scan cycle...")
+    log_action("[Worker] Starting fast-cycle market & FBA scan sweep...")
     try:
         res1 = subprocess.run("python fba_scanner.py", shell=True, capture_output=True, text=True, cwd=os.path.dirname(__file__))
         for line in res1.stdout.splitlines():
             if line.strip(): log_action(f"  [FBA] {line}")
-        log_action("[Worker] FBA scan cycle completed. File closed and ready for OneDrive sync.")
+        log_action("[Worker] FBA sweep complete. Report saved atomically.")
     except Exception as e:
         log_action(f"[Worker] FBA scan error: {e}")
         
@@ -106,17 +105,16 @@ def run_all_scans():
         res2 = subprocess.run("python trend_scanner.py", shell=True, capture_output=True, text=True, cwd=os.path.dirname(__file__))
         for line in res2.stdout.splitlines():
             if line.strip(): log_action(f"  [Trend] {line}")
-        log_action("[Worker] Trend scan cycle completed. File closed and ready for OneDrive sync.")
+        log_action("[Worker] Multi-source trend sweep complete. Report saved atomically.")
     except Exception as e:
         log_action(f"[Worker] Trend scan error: {e}")
 
 def background_scheduler():
-    # Run shortly after startup
-    time.sleep(10)
+    time.sleep(5)
     while True:
         run_all_scans()
-        log_action("[Worker] Cycle finished. Sleeping for 4 hours to allow clean OneDrive sync...")
-        time.sleep(14400) # Sleep 4 hours between automated scans
+        log_action("[Worker] Cycle finished. Waiting 10 minutes for next automated sweep...")
+        time.sleep(600) # Every 10 minutes
 
 @app.route('/dashboard', methods=['GET'])
 def dashboard():
@@ -193,6 +191,6 @@ if __name__ == '__main__':
     log_action("Starting Jarvis Master Node on 0.0.0.0:8899...")
     sched_thread = threading.Thread(target=background_scheduler, daemon=True)
     sched_thread.start()
-    log_action("24/7 Background Scheduler initialized (Runs every 4 hours).")
+    log_action("10-Minute Fast-Cycle Scheduler initialized.")
     
     app.run(host='0.0.0.0', port=8899)
