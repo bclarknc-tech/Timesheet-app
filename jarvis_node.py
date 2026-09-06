@@ -1,7 +1,6 @@
 """
-Trend & Product Scanner Daemon (Runs on Spare PC: 192.168.86.70)
-Provides a secure local API + Live Web Dashboard for 24/7 FBA scanning,
-multi-source market trend tracking, and vault syncing.
+Trend & Product Scanner & Video Clipper Node (Runs on Spare PC: 192.168.86.70)
+Provides API endpoints for FBA scanning, trend tracking, and receiving pushed videos from Main PC.
 """
 from flask import Flask, request, jsonify, render_template_string
 import subprocess
@@ -29,6 +28,16 @@ def verify_auth():
         return False
     return True
 
+LOCAL_CLIPPER_BASE = r"C:\VideoClipper"
+INPUT_DIR = os.path.join(LOCAL_CLIPPER_BASE, "Input")
+OUTPUT_DIR = os.path.join(LOCAL_CLIPPER_BASE, "Output")
+PROCESSED_DIR = os.path.join(LOCAL_CLIPPER_BASE, "Processed")
+
+def ensure_clipper_dirs():
+    for d in [INPUT_DIR, OUTPUT_DIR, PROCESSED_DIR]:
+        for sub in ["TikTok_Mobsters", "YouTube_PoliceCams", "General"]:
+            os.makedirs(os.path.join(d, sub), exist_ok=True)
+
 DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="en">
@@ -47,7 +56,7 @@ DASHBOARD_HTML = """
             </div>
             <div class="flex items-center gap-3">
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
-                    ● 24/7 Scraper Active
+                    ● Node Active & Receiving
                 </span>
                 <button onclick="triggerScan()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-sm cursor-pointer transition">Run Immediate Scan</button>
             </div>
@@ -59,8 +68,8 @@ DASHBOARD_HTML = """
                 <p class="text-2xl font-black text-white mt-1">192.168.86.70</p>
             </div>
             <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow">
-                <p class="text-slate-400 text-sm font-medium">Active Services</p>
-                <p class="text-2xl font-black text-emerald-400 mt-1">FBA & Market Trends</p>
+                <p class="text-slate-400 text-sm font-medium">Video Storage</p>
+                <p class="text-2xl font-black text-emerald-400 mt-1">C:\\VideoClipper (Local)</p>
             </div>
             <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow">
                 <p class="text-slate-400 text-sm font-medium">Vault Sync</p>
@@ -70,7 +79,7 @@ DASHBOARD_HTML = """
 
         <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden shadow-xl mb-8">
             <div class="px-6 py-4 border-b border-slate-700 font-bold text-lg text-white flex justify-between items-center">
-                <span>🖥️ Live Scraper Execution Stream</span>
+                <span>🖥️ Live Execution & Pushed Video Stream</span>
                 <span class="text-xs text-slate-400 font-normal">Auto-refreshing every 5s</span>
             </div>
             <div class="p-6 bg-slate-950 font-mono text-xs text-emerald-400 h-96 overflow-y-auto space-y-1">
@@ -114,10 +123,10 @@ def background_scheduler():
         block_start = time.time()
         while time.time() - block_start < 43200:
             run_scans()
-            log_action("[Scheduler] Sweeps complete. Sleeping 2 minutes before next check...")
+            log_action("[Scheduler] Sweeps complete. Sleeping 2 minutes...")
             time.sleep(120)
             
-        log_action("[Scheduler] === 12 Hours Reached. Pausing for 5 minutes for sync ===")
+        log_action("[Scheduler] === 12 Hours Reached. Pausing for 5 minutes ===")
         time.sleep(300)
 
 @app.route('/dashboard', methods=['GET'])
@@ -138,10 +147,67 @@ def trigger_scan():
     threading.Thread(target=run_scans).start()
     return jsonify({'success': True, 'message': 'Scan dispatched instantly.'})
 
+@app.route('/upload-video', methods=['POST'])
+def upload_video():
+    if not verify_auth():
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    subfolder = request.form.get('subfolder', 'General')
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file part'}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'No selected file'}), 400
+        
+    ensure_clipper_dirs()
+    target_dir = os.path.join(INPUT_DIR, subfolder)
+    os.makedirs(target_dir, exist_ok=True)
+    
+    filepath = os.path.join(target_dir, file.filename)
+    file.save(filepath)
+    log_action(f"[Pusher] Received video from Main PC: {file.filename} -> {subfolder}")
+    
+    # Trigger local clipping thread
+    def clip_pushed_video():
+        log_action(f"[Clipper] Processing pushed video: {file.filename}")
+        out_sub = os.path.join(OUTPUT_DIR, subfolder)
+        os.makedirs(out_sub, exist_ok=True)
+        name_no_ext, _ = os.path.splitext(file.filename)
+        
+        for i, ts in enumerate([0, 60, 120], 1):
+            output_filename = f"{name_no_ext}_clip_{i}.mp4"
+            output_path = os.path.join(out_sub, output_filename)
+            if os.path.exists(output_path):
+                continue
+            cmd = f'ffmpeg -y -ss {ts} -i "{filepath}" -t 30 -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -preset fast -c:a aac "{output_path}"'
+            try:
+                res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
+                if res.returncode == 0:
+                    log_action(f"  -> Generated viral short: {output_filename}")
+            except Exception as e:
+                log_action(f"  -> Clip error: {e}")
+                
+        # Move to processed
+        proc_sub = os.path.join(PROCESSED_DIR, subfolder)
+        os.makedirs(proc_sub, exist_ok=True)
+        try:
+            dest_proc = os.path.join(proc_sub, file.filename)
+            if os.path.exists(dest_proc):
+                os.remove(dest_proc)
+            os.rename(filepath, dest_proc)
+            log_action(f"[Clipper] Finished & archived: {file.filename}")
+        except Exception as e:
+            log_action(f"[Clipper] Archive error: {e}")
+
+    threading.Thread(target=clip_pushed_video).start()
+    return jsonify({'success': True, 'message': f'File {file.filename} received and queued for clipping.'})
+
 if __name__ == '__main__':
     log_action("Starting Trend & Product Scanner on 0.0.0.0:8899...")
+    ensure_clipper_dirs()
     sched_thread = threading.Thread(target=background_scheduler, daemon=True)
     sched_thread.start()
-    log_action("24/7 Trend & Product Scanner Daemon initialized.")
+    log_action("24/7 Automation Daemon initialized with Auto-Receiver.")
     
     app.run(host='0.0.0.0', port=8899)
