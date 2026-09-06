@@ -131,6 +131,14 @@ def background_scheduler():
         log_action("[Scheduler] === 12 Hours Reached. Pausing for 5 minutes ===")
         time.sleep(300)
 
+def get_video_duration(video_path):
+    try:
+        cmd = f'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "{video_path}"'
+        res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
+        return float(res.stdout.strip())
+    except:
+        return 300.0
+
 def video_clipper_worker():
     ensure_clipper_dirs()
     subfolders = ["TikTok_Mobsters", "YouTube_PoliceCams", "General"]
@@ -147,28 +155,32 @@ def video_clipper_worker():
                     continue
                     
                 video_files = []
-                for ext in ["*.mp4", "*.mov", "*.mkv", "*.avi"]:
+                for ext in ["*.mp4", "*.mov", "*.mkv", "*.avi", "*.webm"]:
                     video_files.extend(glob.glob(os.path.join(in_sub, ext)))
                     
                 for video_path in video_files:
                     filename = os.path.basename(video_path)
                     name_no_ext, _ = os.path.splitext(filename)
-                    log_action(f"[Video Clipper] Found new source video on M drive: {filename} in {sub}")
+                    log_action(f"[Video Clipper] Found source video on M drive: {filename} in {sub}")
                     
-                    timestamps = [0, 60, 120]
+                    duration = get_video_duration(video_path)
+                    group_out_dir = os.path.join(out_sub, name_no_ext)
+                    os.makedirs(group_out_dir, exist_ok=True)
+                    
+                    timestamps = list(range(0, int(duration), 60))[:15]
                     for i, ts in enumerate(timestamps, 1):
-                        output_filename = f"{name_no_ext}_clip_{i}.mp4"
-                        output_path = os.path.join(out_sub, output_filename)
+                        output_filename = f"{name_no_ext}_Part_{i}.mp4"
+                        output_path = os.path.join(group_out_dir, output_filename)
                         if os.path.exists(output_path):
                             continue
-                        log_action(f"[Video Clipper] Generating 9:16 vertical clip #{i} starting at {ts}s...")
-                        cmd = f'ffmpeg -y -ss {ts} -i "{video_path}" -t 30 -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -preset fast -c:a aac "{output_path}"'
+                        log_action(f"[Video Clipper] Generating 9:16 vertical Part {i} (60s at {ts}s)...")
+                        cmd = f'ffmpeg -y -ss {ts} -i "{video_path}" -t 60 -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -preset fast -c:a aac "{output_path}"'
                         try:
-                            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
+                            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=180)
                             if res.returncode == 0:
-                                log_action(f"  -> Saved viral short to M drive: {output_filename}")
+                                log_action(f"  -> Saved Part {i} to M drive: {output_filename}")
                             else:
-                                log_action(f"  -> FFmpeg error on clip {i}: {res.stderr}")
+                                log_action(f"  -> FFmpeg error on Part {i}: {res.stderr}")
                         except Exception as e:
                             log_action(f"  -> Exception clipping video: {e}")
                             
@@ -183,6 +195,32 @@ def video_clipper_worker():
         except Exception as e:
             log_action(f"Clipper worker error: {e}")
         time.sleep(15)
+
+def video_harvester_worker():
+    log_action("[Harvester Worker] Autonomous police/mobster video harvester initialized.")
+    queries = [
+        "ytsearch1:Georgia police chase dashcam",
+        "ytsearch1:police body cam footage arrest",
+        "ytsearch1:mobster mafia documentary stories"
+    ]
+    while True:
+        try:
+            for q in queries:
+                target_sub = "TikTok_Mobsters" if "mobster" in q else "YouTube_PoliceCams"
+                target_dir = os.path.join(INPUT_DIR, target_sub)
+                os.makedirs(target_dir, exist_ok=True)
+                
+                log_action(f"[Harvester] Searching & downloading: {q}")
+                cmd = f'python -m yt_dlp --max-downloads 1 -o "{target_dir}/%(title)s.%(ext)s" "{q}"'
+                res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=300)
+                if res.returncode == 0:
+                    log_action(f"[Harvester] Successfully harvested new video for {target_sub}")
+                else:
+                    log_action(f"[Harvester] Harvest note: {res.stdout.strip()[:100]}")
+                time.sleep(7200) # Every 2 hours per query
+        except Exception as e:
+            log_action(f"[Harvester] Error: {e}")
+        time.sleep(3600)
 
 @app.route('/dashboard', methods=['GET'])
 def dashboard():
@@ -293,6 +331,8 @@ if __name__ == '__main__':
     sched_thread.start()
     clipper_thread = threading.Thread(target=video_clipper_worker, daemon=True)
     clipper_thread.start()
-    log_action("24/7 Automation Daemon initialized with Network Share Video Clipper.")
+    harvester_thread = threading.Thread(target=video_harvester_worker, daemon=True)
+    harvester_thread.start()
+    log_action("24/7 Automation Daemon initialized with Harvester & Video Clipper.")
     
     app.run(host='0.0.0.0', port=8899)
