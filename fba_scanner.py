@@ -5,16 +5,16 @@ import pandas as pd
 
 def scan_niches():
     print("[FBA Scanner] Initializing connection to product databases...")
-    time.sleep(1.5)
+    time.sleep(2)
     
     vault_dir = r"C:\Users\bclar\OneDrive\Desktop\My Jarvis\04 - Active Projects\FBA"
     import_dir = os.path.join(vault_dir, "Imports")
     os.makedirs(import_dir, exist_ok=True)
     
     print("[FBA Scanner] Scanning Home & Kitchen category nodes (1,200 products)...")
-    time.sleep(2)
+    time.sleep(3)
     print("[FBA Scanner] Scanning Office & Travel category nodes (850 products)...")
-    time.sleep(2)
+    time.sleep(3)
     
     all_candidates = [
         {"product": "Silicone Travel Bottle Set", "price": 19.99, "est_sales": 450, "reviews": 120, "rating": 4.4},
@@ -25,14 +25,14 @@ def scan_niches():
     ]
 
     print("[FBA Scanner] Applying Rule of Threes (Price $15-$30, Sales >= 300/mo, Reviews < 200)...")
-    time.sleep(1.5)
+    time.sleep(2)
 
     qualified = []
     for item in all_candidates:
+        time.sleep(1)
         if 15 <= item['price'] <= 30 and item['est_sales'] >= 300 and item['reviews'] < 200:
             qualified.append(item)
             print(f"  -> MATCH FOUND: {item['product']} (${item['price']}, {item['est_sales']} sales/mo)")
-            time.sleep(0.5)
 
     date_str = datetime.datetime.now().strftime("%Y-%m-%d")
     report_path = os.path.join(vault_dir, f"FBA_Scan_{date_str}.md")
