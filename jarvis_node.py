@@ -1,7 +1,7 @@
 """
-Trend & Product Scanner Daemon (Runs on Spare PC: 192.168.86.70)
+Trend, Product Scanner & Video Clipper Daemon (Runs on Spare PC: 192.168.86.70)
 Provides a secure local API + Live Web Dashboard for task execution, 
-FBA scanning, multi-source market trend tracking, video clipping, and 12-hour continuous scanning with 5-minute sync pauses.
+FBA scanning, market trend tracking, and automated 24/7 video clipping.
 """
 from flask import Flask, request, jsonify, render_template_string
 import subprocess
@@ -20,7 +20,7 @@ def log_action(msg):
     entry = f"[{timestamp}] {msg}"
     print(entry)
     EXEC_LOGS.append(entry)
-    if len(EXEC_LOGS) > 200:
+    if len(EXEC_LOGS) > 250:
         EXEC_LOGS.pop(0)
 
 def verify_auth():
@@ -47,9 +47,9 @@ DASHBOARD_HTML = """
             </div>
             <div class="flex items-center gap-3">
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
-                    ● 12-Hour Continuous Scraper Active
+                    ● 24/7 Video Clipping & Scraper Active
                 </span>
-                <button onclick="triggerScan()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-sm cursor-pointer transition">Run Immediate Scan</button>
+                <button onclick="triggerScan()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg text-sm cursor-pointer transition">Run Immediate Sweep</button>
             </div>
         </header>
 
@@ -59,18 +59,18 @@ DASHBOARD_HTML = """
                 <p class="text-2xl font-black text-white mt-1">192.168.86.70</p>
             </div>
             <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow">
-                <p class="text-slate-400 text-sm font-medium">Cycle Strategy</p>
-                <p class="text-2xl font-black text-emerald-400 mt-1">12 Hrs Scan / 5 Min Sync</p>
+                <p class="text-slate-400 text-sm font-medium">Active Workers</p>
+                <p class="text-2xl font-black text-emerald-400 mt-1">FBA, Trends, 9:16 Video Clipper</p>
             </div>
             <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 shadow">
-                <p class="text-slate-400 text-sm font-medium">Vault Sync</p>
-                <p class="text-2xl font-black text-indigo-400 mt-1">Active (Jarvis 2.0)</p>
+                <p class="text-slate-400 text-sm font-medium">Shared Vault</p>
+                <p class="text-2xl font-black text-indigo-400 mt-1">Jarvis 2.0 (OneDrive)</p>
             </div>
         </div>
 
         <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden shadow-xl mb-8">
             <div class="px-6 py-4 border-b border-slate-700 font-bold text-lg text-white flex justify-between items-center">
-                <span>🖥️ Live Execution & Scraper Stream</span>
+                <span>🖥️ Live Execution & Automation Stream</span>
                 <span class="text-xs text-slate-400 font-normal">Auto-refreshing every 5s</span>
             </div>
             <div class="p-6 bg-slate-950 font-mono text-xs text-emerald-400 h-96 overflow-y-auto space-y-1">
@@ -84,15 +84,15 @@ DASHBOARD_HTML = """
         function triggerScan() {
             fetch('/api/trigger-scan', {method: 'POST', headers: {'Authorization': 'Bearer jarvis-local-master-2026'}})
                 .then(r => r.json())
-                .then(res => { alert(res.message || 'Scan triggered!'); location.reload(); });
+                .then(res => { alert(res.message || 'Sweep triggered!'); location.reload(); });
         }
     </script>
 </body>
 </html>
 """
 
-def run_all_scans():
-    log_action("[Worker] Running market & FBA data collection cycle...")
+def run_all_tasks():
+    log_action("[Worker] Starting automation sweep (FBA + Trends + Video Clipper)...")
     try:
         res1 = subprocess.run("python fba_scanner.py", shell=True, capture_output=True, text=True, cwd=os.path.dirname(__file__))
         for line in res1.stdout.splitlines():
@@ -107,14 +107,21 @@ def run_all_scans():
     except Exception as e:
         log_action(f"[Worker] Trend scan error: {e}")
 
+    try:
+        res3 = subprocess.run("python video_clipper.py", shell=True, capture_output=True, text=True, cwd=os.path.dirname(__file__))
+        for line in res3.stdout.splitlines():
+            if line.strip(): log_action(f"  [Clipper] {line}")
+    except Exception as e:
+        log_action(f"[Worker] Video clipper error: {e}")
+
 def background_scheduler():
     time.sleep(5)
     while True:
-        log_action("[Scheduler] === Starting 12-Hour Continuous Scanning Block ===")
+        log_action("[Scheduler] === Starting Continuous 12-Hour Automation Block ===")
         block_start = time.time()
         while time.time() - block_start < 43200:
-            run_all_scans()
-            log_action("[Scheduler] Sleeping 2 minutes before next continuous sweep...")
+            run_all_tasks()
+            log_action("[Scheduler] Sweeps complete. Sleeping 2 minutes before next check...")
             time.sleep(120)
             
         log_action("[Scheduler] === 12 Hours Reached. Pausing for 5 minutes for OneDrive sync ===")
@@ -134,67 +141,14 @@ def health():
 
 @app.route('/api/trigger-scan', methods=['POST'])
 def trigger_scan():
-    log_action("Immediate scan requested via Live Dashboard.")
-    threading.Thread(target=run_all_scans).start()
-    return jsonify({'success': True, 'message': 'Scan dispatched instantly.'})
-
-@app.route('/exec', methods=['POST'])
-def execute_command():
-    if not verify_auth():
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    data = request.json or {}
-    cmd = data.get('command')
-    if not cmd:
-        return jsonify({'error': 'No command provided'}), 400
-    
-    log_action(f"Executing: {cmd}")
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=300, cwd=data.get('cwd', None))
-        log_action(f"Finished: {cmd} (Exit: {result.returncode})")
-        return jsonify({
-            'success': True,
-            'exit_code': result.returncode,
-            'stdout': result.stdout,
-            'stderr': result.stderr
-        })
-    except Exception as e:
-        log_action(f"Error executing {cmd}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/clip-video', methods=['POST'])
-def clip_video():
-    if not verify_auth():
-        return jsonify({'error': 'Unauthorized'}), 401
-    
-    data = request.json or {}
-    input_file = data.get('input_file')
-    output_file = data.get('output_file', 'viral_short.mp4')
-    start_time = data.get('start', '00:00:00')
-    duration = data.get('duration', '30')
-    
-    if not input_file or not os.path.exists(input_file):
-        return jsonify({'success': False, 'error': 'Input video file not found'}), 400
-        
-    cmd = f'ffmpeg -y -ss {start_time} -i "{input_file}" -t {duration} -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -preset fast -c:a aac "{output_file}"'
-    
-    log_action(f"Clipping video: {input_file} -> {output_file}")
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
-        if result.returncode == 0:
-            log_action(f"Successfully created viral clip: {output_file}")
-            return jsonify({'success': True, 'output_file': output_file})
-        else:
-            log_action(f"FFmpeg error: {result.stderr}")
-            return jsonify({'success': False, 'error': result.stderr}), 500
-    except Exception as e:
-        log_action(f"Video clipping exception: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+    log_action("Immediate sweep requested via Live Dashboard.")
+    threading.Thread(target=run_all_tasks).start()
+    return jsonify({'success': True, 'message': 'Automation sweep dispatched instantly.'})
 
 if __name__ == '__main__':
     log_action("Starting Trend & Product Scanner on 0.0.0.0:8899...")
     sched_thread = threading.Thread(target=background_scheduler, daemon=True)
     sched_thread.start()
-    log_action("12-Hour Continuous Scraper Scheduler initialized.")
+    log_action("24/7 Automation & Video Clipping Daemon initialized.")
     
     app.run(host='0.0.0.0', port=8899)
