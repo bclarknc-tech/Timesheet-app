@@ -1,6 +1,6 @@
 """
 24/7 Autonomous Video Clipping Daemon (Runs on Spare PC: 192.168.86.70)
-Monitors Main PC Network Share (\\192.168.86.62\VideoClipper) for raw source video files,
+Monitors Main PC Network Share (\\OFFICEPC\Clipper) for raw source video files,
 automatically slices them into viral 30-second 9:16 vertical clips, and deposits them into Output/.
 """
 import os
@@ -9,8 +9,8 @@ import subprocess
 import datetime
 import glob
 
-# Main PC Network Share (OfficePC IP: 192.168.86.62)
-VAULT_BASE = r"\\192.168.86.62\VideoClipper"
+# Main PC Network Share (`\\OFFICEPC\Clipper`)
+VAULT_BASE = r"\\OFFICEPC\Clipper"
 INPUT_DIR = os.path.join(VAULT_BASE, "Input")
 OUTPUT_DIR = os.path.join(VAULT_BASE, "Output")
 PROCESSED_DIR = os.path.join(VAULT_BASE, "Processed")
