@@ -8,6 +8,7 @@ import os
 import datetime
 import threading
 import time
+import glob
 
 app = Flask(__name__)
 SECRET_TOKEN = "jarvis-local-master-2026"
@@ -28,7 +29,7 @@ def verify_auth():
         return False
     return True
 
-LOCAL_CLIPPER_BASE = r"C:\VideoClipper"
+LOCAL_CLIPPER_BASE = r"\\192.168.86.62\Video Clipper"
 INPUT_DIR = os.path.join(LOCAL_CLIPPER_BASE, "Input")
 OUTPUT_DIR = os.path.join(LOCAL_CLIPPER_BASE, "Output")
 PROCESSED_DIR = os.path.join(LOCAL_CLIPPER_BASE, "Processed")
@@ -129,6 +130,59 @@ def background_scheduler():
         log_action("[Scheduler] === 12 Hours Reached. Pausing for 5 minutes ===")
         time.sleep(300)
 
+def video_clipper_worker():
+    ensure_clipper_dirs()
+    subfolders = ["TikTok_Mobsters", "YouTube_PoliceCams", "General"]
+    log_action("[Video Clipper Worker] Started monitoring network share: " + INPUT_DIR)
+    time.sleep(10)
+    while True:
+        try:
+            for sub in subfolders:
+                in_sub = os.path.join(INPUT_DIR, sub)
+                out_sub = os.path.join(OUTPUT_DIR, sub)
+                proc_sub = os.path.join(PROCESSED_DIR, sub)
+                
+                if not os.path.exists(in_sub):
+                    continue
+                    
+                video_files = []
+                for ext in ["*.mp4", "*.mov", "*.mkv", "*.avi"]:
+                    video_files.extend(glob.glob(os.path.join(in_sub, ext)))
+                    
+                for video_path in video_files:
+                    filename = os.path.basename(video_path)
+                    name_no_ext, _ = os.path.splitext(filename)
+                    log_action(f"[Video Clipper] Found new source video on M drive: {filename} in {sub}")
+                    
+                    timestamps = [0, 60, 120]
+                    for i, ts in enumerate(timestamps, 1):
+                        output_filename = f"{name_no_ext}_clip_{i}.mp4"
+                        output_path = os.path.join(out_sub, output_filename)
+                        if os.path.exists(output_path):
+                            continue
+                        log_action(f"[Video Clipper] Generating 9:16 vertical clip #{i} starting at {ts}s...")
+                        cmd = f'ffmpeg -y -ss {ts} -i "{video_path}" -t 30 -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -preset fast -c:a aac "{output_path}"'
+                        try:
+                            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
+                            if res.returncode == 0:
+                                log_action(f"  -> Saved viral short to M drive: {output_filename}")
+                            else:
+                                log_action(f"  -> FFmpeg error on clip {i}: {res.stderr}")
+                        except Exception as e:
+                            log_action(f"  -> Exception clipping video: {e}")
+                            
+                    try:
+                        dest_processed = os.path.join(proc_sub, filename)
+                        if os.path.exists(dest_processed):
+                            os.remove(dest_processed)
+                        os.rename(video_path, dest_processed)
+                        log_action(f"[Video Clipper] Moved source to processed on M drive: {filename}")
+                    except Exception as e:
+                        log_action(f"Error moving processed file: {e}")
+        except Exception as e:
+            log_action(f"Clipper worker error: {e}")
+        time.sleep(15)
+
 @app.route('/dashboard', methods=['GET'])
 def dashboard():
     return render_template_string(DASHBOARD_HTML, logs=reversed(EXEC_LOGS))
@@ -208,6 +262,8 @@ if __name__ == '__main__':
     ensure_clipper_dirs()
     sched_thread = threading.Thread(target=background_scheduler, daemon=True)
     sched_thread.start()
-    log_action("24/7 Automation Daemon initialized with Auto-Receiver.")
+    clipper_thread = threading.Thread(target=video_clipper_worker, daemon=True)
+    clipper_thread.start()
+    log_action("24/7 Automation Daemon initialized with Network Share Video Clipper.")
     
     app.run(host='0.0.0.0', port=8899)

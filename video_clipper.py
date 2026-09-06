@@ -10,8 +10,8 @@ import subprocess
 import datetime
 import glob
 
-# Local OneDrive Vault path (automatically synced across both PCs by OneDrive)
-VAULT_BASE = r"C:\Users\bclar\OneDrive\Desktop\Jarvis 2.0\Video Clipper"
+# Main PC network share path (monitored & written to by spare PC)
+VAULT_BASE = r"\\192.168.86.62\Video Clipper"
 INPUT_DIR = os.path.join(VAULT_BASE, "Input")
 OUTPUT_DIR = os.path.join(VAULT_BASE, "Output")
 PROCESSED_DIR = os.path.join(VAULT_BASE, "Processed")
