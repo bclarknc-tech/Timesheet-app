@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Timesheet App</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            background: #f0f2f5; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .login-card { 
+            background: white; 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+            width: 100%; 
+            max-width: 400px; 
+        }
+        h2 { margin-bottom: 20px; color: #1a1a1a; font-size: 22px; text-align: center; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #4a5568; font-weight: 600; font-size: 14px; }
+        input[type="password"] { 
+            width: 100%; 
+            padding: 12px; 
+            border: 1px solid #cbd5e0; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input[type="password"]:focus { border-color: #3182ce; box-shadow: 0 0 0 3px rgba(49,130,206,0.15); }
+        button { 
+            width: 100%; 
+            padding: 12px; 
+            background: #2b6cb0; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: background 0.2s;
+        }
+        button:hover { background: #2c5282; }
+        .error-msg { 
+            background: #fed7d7; 
+            color: #c53030; 
+            padding: 10px 14px; 
+            border-radius: 6px; 
+            font-size: 14px; 
+            margin-bottom: 16px; 
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h2>🔒 Admin Portal</h2>
+        {% if error %}
+            <div class="error-msg">{{ error }}</div>
+        {% endif %}
+        <form action="/login" method="POST">
+            <div class="form-group">
+                <label for="password">Admin Password</label>
+                <input type="password" id="password" name="password" placeholder="Enter password" required autofocus>
+            </div>
+            <button type="submit">Log In</button>
+        </form>
+    </div>
+</body>
+</html>

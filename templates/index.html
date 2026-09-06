@@ -2,59 +2,182 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timesheet Entry</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Crew Timesheet</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; }
-        .container { max-width: 600px; margin: 40px auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        h1 { margin-bottom: 30px; color: #333; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; color: #555; font-weight: 500; }
-        select, input[type="text"], textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: inherit; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            background: #f4f6f8; 
+            color: #2d3748;
+            padding: 12px;
+            min-height: 100vh;
+        }
+        .container { 
+            max-width: 540px; 
+            margin: 0 auto; 
+            background: #ffffff; 
+            padding: 20px 18px; 
+            border-radius: 16px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06); 
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #edf2f7;
+        }
+        .header h1 { font-size: 22px; font-weight: 700; color: #1a202c; }
+        .header .badge { background: #ebf8ff; color: #2b6cb0; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+        
+        .form-group { margin-bottom: 18px; }
+        label { display: block; margin-bottom: 6px; color: #4a5568; font-weight: 600; font-size: 14px; }
+        
+        select, input[type="text"], input[type="number"], input[type="date"], textarea { 
+            width: 100%; 
+            padding: 12px 14px; 
+            border: 1.5px solid #cbd5e0; 
+            border-radius: 10px; 
+            font-size: 16px; /* Prevents auto-zoom on iOS */
+            background: #fff;
+            color: #1a202c;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        select:focus, input:focus, textarea:focus {
+            border-color: #3182ce;
+            box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.15);
+        }
+
+        /* Job Autocomplete */
         .job-input-wrapper { position: relative; }
-        .job-suggestions { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ddd; border-top: none; border-radius: 0 0 4px 4px; max-height: 200px; overflow-y: auto; display: none; z-index: 10; }
+        .job-suggestions { 
+            position: absolute; 
+            top: 100%; 
+            left: 0; 
+            right: 0; 
+            background: white; 
+            border: 1px solid #cbd5e0; 
+            border-top: none; 
+            border-radius: 0 0 10px 10px; 
+            max-height: 220px; 
+            overflow-y: auto; 
+            display: none; 
+            z-index: 100; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
         .job-suggestions.active { display: block; }
-        .job-suggestion { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
-        .job-suggestion:hover { background: #f0f0f0; }
-        .job-name-display { font-size: 12px; color: #888; margin-top: 5px; font-style: italic; }
-        textarea { resize: vertical; min-height: 80px; }
-        input[type="number"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
-        input[type="date"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; cursor: pointer; }
-        input[type="date"]:focus { outline: none; border-color: #0066cc; box-shadow: 0 0 0 2px rgba(0,102,204,0.1); }
-        button { width: 100%; padding: 12px; background: #0066cc; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
-        button:hover { background: #0052a3; }
-        .success { color: green; margin-top: 10px; }
-        .error { color: red; margin-top: 10px; }
-        .hours-note { font-size: 12px; color: #888; margin-top: 5px; }
-        .description-note { font-size: 12px; color: #888; margin-top: 5px; }
+        .job-suggestion { 
+            padding: 12px 14px; 
+            cursor: pointer; 
+            border-bottom: 1px solid #edf2f7; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .job-suggestion:last-child { border-bottom: none; }
+        .job-suggestion:active, .job-suggestion:hover { background: #ebf8ff; }
+        .job-suggestion .job-num { font-weight: 700; color: #2b6cb0; }
+        .job-suggestion .job-lbl { font-size: 13px; color: #718096; text-align: right; max-width: 65%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* Quick Hours Buttons */
+        .hours-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .hour-btn {
+            flex: 1;
+            padding: 10px 0;
+            background: #edf2f7;
+            color: #2d3748;
+            border: 1px solid #cbd5e0;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.15s ease;
+        }
+        .hour-btn:active { background: #cbd5e0; transform: scale(0.97); }
+
+        textarea { resize: vertical; min-height: 90px; }
+        .hint { font-size: 12px; color: #718096; margin-top: 4px; }
+
+        .preview-box {
+            margin-top: 8px;
+            padding: 10px 12px;
+            background: #f7fafc;
+            border: 1px dashed #cbd5e0;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #4a5568;
+            min-height: 38px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .submit-btn { 
+            width: 100%; 
+            padding: 14px; 
+            background: #2b6cb0; 
+            color: white; 
+            border: none; 
+            border-radius: 12px; 
+            font-size: 18px; 
+            font-weight: 700; 
+            cursor: pointer; 
+            margin-top: 10px;
+            box-shadow: 0 4px 12px rgba(43, 108, 176, 0.25);
+            transition: background 0.2s;
+        }
+        .submit-btn:active { background: #2c5282; transform: translateY(1px); }
+
+        /* Toast / Alert */
+        .message-banner {
+            display: none;
+            padding: 14px;
+            border-radius: 10px;
+            margin-top: 14px;
+            font-weight: 600;
+            text-align: center;
+            font-size: 15px;
+        }
+        .message-banner.success { display: block; background: #c6f6d5; color: #22543d; border: 1px solid #9ae6b4; }
+        .message-banner.error { display: block; background: #fed7d7; color: #9b2c2c; border: 1px solid #feb2b2; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Timesheet Entry</h1>
+        <div class="header">
+            <h1>⏱️ Crew Timesheet</h1>
+            <span class="badge">Mobile Edition</span>
+        </div>
+
         <form id="timesheetForm">
             <div class="form-group">
                 <label for="employee">Employee Name</label>
                 <select id="employee" name="employee_name" required>
-                    <option value="">-- Select Employee --</option>
-                    <option value="Brian Clark">Brian Clark</option>
-                    <option value="Rolfe Haigler">Rolfe Haigler</option>
-                    <option value="Dylan Williams">Dylan Williams</option>
+                    <option value="">-- Select Your Name --</option>
+                    {% for emp in employees %}
+                    <option value="{{ emp }}">{{ emp }}</option>
+                    {% endfor %}
                 </select>
             </div>
 
             <div class="form-group">
-                <label for="jobNumber">Job Number</label>
+                <label for="jobNumber">Job Number or Search</label>
                 <div class="job-input-wrapper">
-                    <input type="text" id="jobNumber" name="job_number" placeholder="Enter or select a job number" required>
+                    <input type="text" id="jobNumber" name="job_number" placeholder="Type job # or name..." required autocomplete="off">
                     <div id="jobSuggestions" class="job-suggestions"></div>
                 </div>
             </div>
 
             <div class="form-group">
                 <label for="jobName">Job Name</label>
-                <input type="text" id="jobName" name="job_name" placeholder="Job name (auto-filled or enter manually)" required>
+                <input type="text" id="jobName" name="job_name" placeholder="Auto-filled or enter job name" required>
             </div>
 
             <div class="form-group">
@@ -63,45 +186,66 @@
             </div>
 
             <div class="form-group">
-                <label for="hours">Hours (in quarter increments)</label>
-                <input type="number" id="hours" name="hours" step="0.25" min="0.25" required>
-                <div class="hours-note">Enter values like 0.25, 0.5, 0.75, 1.0, etc.</div>
+                <label for="hours">Hours Worked</label>
+                <input type="number" id="hours" name="hours" step="0.25" min="0.25" placeholder="e.g. 8.0" required>
+                <div class="hours-row">
+                    <button type="button" class="hour-btn" onclick="setHours(2.0)">2.0 hrs</button>
+                    <button type="button" class="hour-btn" onclick="setHours(4.0)">4.0 hrs</button>
+                    <button type="button" class="hour-btn" onclick="setHours(8.0)">8.0 hrs</button>
+                    <button type="button" class="hour-btn" onclick="addHours(0.5)">+0.5 hr</button>
+                </div>
             </div>
 
             <div class="form-group">
-                <label for="description">Work Description</label>
-                <textarea id="description" name="description" placeholder="Enter each item on a new line - they will be bulleted" required spellcheck="true"></textarea>
-                <div class="description-note">Press Enter for each new item (will be converted to bullets)</div>
-                <div id="preview" style="margin-top: 10px; padding: 10px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px; white-space: pre-wrap; word-break: break-word; font-family: monospace; font-size: 13px; min-height: 40px; color: #666;"></div>
+                <label for="description">Work Performed</label>
+                <textarea id="description" name="description" placeholder="Type tasks performed (each line becomes a bullet point)" required spellcheck="true"></textarea>
+                <div class="hint">Tip: Press Enter for each new item.</div>
+                <div id="preview" class="preview-box">(Bullet preview will appear here)</div>
             </div>
 
-            <button type="submit">Submit Timesheet</button>
-            <div id="message"></div>
+            <button type="submit" class="submit-btn" id="submitBtn">Submit Hours</button>
+            <div id="message" class="message-banner"></div>
         </form>
     </div>
 
     <script>
         let jobs = [];
 
+        // Auto-set today's date
+        const dateInput = document.getElementById('date');
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.value = today;
+
+        // Remember last selected employee
+        const empSelect = document.getElementById('employee');
+        const savedEmp = localStorage.getItem('selected_employee');
+        if (savedEmp) {
+            empSelect.value = savedEmp;
+        }
+        empSelect.addEventListener('change', () => {
+            localStorage.setItem('selected_employee', empSelect.value);
+        });
+
+        // Load jobs list from API
         fetch('/api/jobs')
             .then(r => r.json())
-            .then(data => {
-                jobs = data;
-            });
+            .then(data => { jobs = data; });
 
         const jobNumberInput = document.getElementById('jobNumber');
         const jobNameInput = document.getElementById('jobName');
         const jobSuggestions = document.getElementById('jobSuggestions');
 
         jobNumberInput.addEventListener('input', (e) => {
-            const value = e.target.value.toLowerCase();
-
-            if (!value) {
+            const val = e.target.value.trim().toLowerCase();
+            if (!val) {
                 jobSuggestions.classList.remove('active');
                 return;
             }
 
-            const matches = jobs.filter(j => j.number.toLowerCase().includes(value));
+            const matches = jobs.filter(j => 
+                j.number.toLowerCase().includes(val) || 
+                j.name.toLowerCase().includes(val)
+            ).slice(0, 15);
 
             if (matches.length === 0) {
                 jobSuggestions.classList.remove('active');
@@ -111,14 +255,7 @@
                 matches.forEach(job => {
                     const div = document.createElement('div');
                     div.className = 'job-suggestion';
-                    const numberSpan = document.createElement('strong');
-                    numberSpan.textContent = job.number;
-                    div.appendChild(numberSpan);
-                    const nameSpan = document.createElement('span');
-                    nameSpan.textContent = ' - ' + job.name;
-                    nameSpan.style.color = '#888';
-                    nameSpan.style.fontSize = '13px';
-                    div.appendChild(nameSpan);
+                    div.innerHTML = `<span class="job-num">${job.number}</span><span class="job-lbl">${job.name}</span>`;
                     div.addEventListener('click', () => {
                         jobNumberInput.value = job.number;
                         jobNameInput.value = job.name;
@@ -135,6 +272,15 @@
             }
         });
 
+        function setHours(val) {
+            document.getElementById('hours').value = val;
+        }
+        function addHours(delta) {
+            const current = parseFloat(document.getElementById('hours').value) || 0;
+            document.getElementById('hours').value = (current + delta).toFixed(2);
+        }
+
+        // Live bullet preview
         document.getElementById('description').addEventListener('input', (e) => {
             const lines = e.target.value
                 .split('\n')
@@ -142,13 +288,19 @@
                 .filter(line => line.length > 0)
                 .map(line => '• ' + line)
                 .join('\n');
-            document.getElementById('preview').textContent = lines || '(preview will appear here)';
+            document.getElementById('preview').textContent = lines || '(Bullet preview will appear here)';
         });
 
+        // Submit form
         document.getElementById('timesheetForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            const form = e.target;
+            const submitBtn = document.getElementById('submitBtn');
+            const msg = document.getElementById('message');
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
 
+            const form = e.target;
             const descriptionLines = form.description.value
                 .split('\n')
                 .map(line => line.trim())
@@ -172,15 +324,32 @@
             })
             .then(r => r.json())
             .then(result => {
-                const msg = document.getElementById('message');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Hours';
+
                 if (result.success) {
-                    msg.textContent = 'Timesheet submitted successfully!';
-                    msg.className = 'success';
+                    msg.textContent = '✅ Timesheet submitted successfully!';
+                    msg.className = 'message-banner success';
+                    
+                    // Reset fields except employee & date
+                    const currentEmp = form.employee_name.value;
+                    const currentDate = form.date.value;
                     form.reset();
+                    form.employee_name.value = currentEmp;
+                    form.date.value = currentDate;
+                    document.getElementById('preview').textContent = '(Bullet preview will appear here)';
+
+                    setTimeout(() => { msg.className = 'message-banner'; }, 5000);
                 } else {
-                    msg.textContent = 'Error: ' + result.error;
-                    msg.className = 'error';
+                    msg.textContent = '❌ Error: ' + (result.error || 'Submission failed');
+                    msg.className = 'message-banner error';
                 }
+            })
+            .catch(err => {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Hours';
+                msg.textContent = '❌ Network error submitting timesheet';
+                msg.className = 'message-banner error';
             });
         });
     </script>

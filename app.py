@@ -1,9 +1,13 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from functools import wraps
 import os
+import json
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'timesheet-admin-secret-2026')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin')
 
 database_url = os.environ.get('DATABASE_URL')
 if database_url:
@@ -28,17 +32,12 @@ class Timesheet(db.Model):
     date_submitted = db.Column(db.DateTime, default=datetime.utcnow)
     is_billed = db.Column(db.Boolean, default=False)
 
-import json
-import os
-
 EMPLOYEES = ['Brian Clark', 'Rolfe Haigler', 'Dylan Williams']
-
 JOBS = []
 
 def load_jobs():
     global JOBS
     json_path = os.path.join(os.path.dirname(__file__), 'jobs.json')
-
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
             JOBS = json.load(f)
@@ -51,9 +50,36 @@ load_jobs()
 with app.app_context():
     db.create_all()
 
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in'):
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'Unauthorized access'}), 401
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 @app.route('/')
 def index():
     return render_template('index.html', employees=EMPLOYEES, jobs=JOBS)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        password = request.form.get('password')
+        if password == ADMIN_PASSWORD:
+            session['logged_in'] = True
+            return redirect(url_for('admin'))
+        else:
+            error = 'Incorrect password. Try again.'
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    return redirect(url_for('login'))
 
 @app.route('/api/jobs')
 def get_jobs():
@@ -61,7 +87,6 @@ def get_jobs():
 
 @app.route('/api/submit', methods=['POST'])
 def submit_timesheet():
-    from datetime import date
     data = request.json
     try:
         entry = Timesheet(
@@ -74,20 +99,62 @@ def submit_timesheet():
         )
         db.session.add(entry)
         db.session.commit()
-        print(f"[SUBMIT] Success - ID {entry.id}, DB: {app.config['SQLALCHEMY_DATABASE_URI'][:50]}")
         return jsonify({'success': True, 'id': entry.id})
     except Exception as e:
-        print(f"[SUBMIT] Error: {str(e)}, DB: {app.config['SQLALCHEMY_DATABASE_URI'][:50]}")
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/admin')
+@login_required
 def admin():
-    return render_template('admin.html')
+    return render_template('admin.html', jobs_count=len(JOBS))
+
+@app.route('/admin/upload-jobs', methods=['POST'])
+@login_required
+def upload_jobs():
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file uploaded'}), 400
+    file = request.files['file']
+    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({'success': False, 'error': 'File must be an Excel file (.xlsx or .xls)'}), 400
+    
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(file, data_only=True)
+        sheet = wb.active
+        
+        new_jobs = []
+        for row in sheet.iter_rows(values_only=True):
+            if not row or len(row) < 2:
+                continue
+            col0 = str(row[0]).strip() if row[0] is not None else ''
+            col1 = str(row[1]).strip() if row[1] is not None else ''
+            
+            # Skip header rows
+            if col0.lower() in ['job', 'job number', 'job #', 'number', '#', 'job_number'] or col1.lower() in ['name', 'job name', 'description', 'job_name']:
+                continue
+            
+            if col0 and col1 and col0.lower() != 'none' and col1.lower() != 'none':
+                new_jobs.append({'number': col0, 'name': col1})
+        
+        if not new_jobs:
+            return jsonify({'success': False, 'error': 'No valid job rows found in Excel file'}), 400
+            
+        json_path = os.path.join(os.path.dirname(__file__), 'jobs.json')
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(new_jobs, f, indent=2)
+            
+        load_jobs()
+        return jsonify({'success': True, 'count': len(new_jobs)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/toggle-bill/<int:entry_id>', methods=['POST'])
+@login_required
 def toggle_bill(entry_id):
     try:
         entry = Timesheet.query.get(entry_id)
+        if not entry:
+            return jsonify({'success': False, 'error': 'Entry not found'}), 404
         entry.is_billed = not entry.is_billed
         db.session.commit()
         return jsonify({'success': True, 'is_billed': entry.is_billed})
@@ -95,6 +162,7 @@ def toggle_bill(entry_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/delete/<int:entry_id>', methods=['DELETE'])
+@login_required
 def delete_entry(entry_id):
     try:
         entry = Timesheet.query.get(entry_id)
@@ -107,13 +175,14 @@ def delete_entry(entry_id):
         return jsonify({'success': False, 'error': str(e)}), 400
 
 @app.route('/api/report', methods=['GET'])
+@login_required
 def get_report():
     employee_name = request.args.get('employee_name')
     job_number = request.args.get('job_number')
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
     unbilled_only = request.args.get('unbilled_only', 'false').lower() == 'true'
-    report_type = request.args.get('report_type', 'flat')  # flat, by_employee, by_job, by_date
+    report_type = request.args.get('report_type', 'flat')
 
     query = Timesheet.query
 
@@ -133,7 +202,6 @@ def get_report():
         query = query.filter_by(is_billed=False)
 
     entries = query.all()
-    print(f"[REPORT] Found {len(entries)} entries, DB: {app.config['SQLALCHEMY_DATABASE_URI'][:50]}")
 
     result = []
     total_hours = 0
@@ -178,7 +246,7 @@ def get_report():
 
     return jsonify({
         'entries': result,
-        'total_hours': total_hours,
+        'total_hours': round(total_hours, 2),
         'grouped': grouped,
         'report_type': report_type
     })
