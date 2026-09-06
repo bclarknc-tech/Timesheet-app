@@ -4,6 +4,7 @@ from datetime import datetime
 from functools import wraps
 import os
 import json
+import time
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'timesheet-admin-secret-2026')
@@ -34,9 +35,35 @@ class Timesheet(db.Model):
 
 EMPLOYEES = ['Brian Clark', 'Rolfe Haigler', 'Dylan Williams']
 JOBS = []
+last_job_load_time = 0
 
 def load_jobs():
-    global JOBS
+    global JOBS, last_job_load_time
+    
+    # 1. Try loading directly from master OneDrive Excel file if present
+    master_path = os.environ.get('MASTER_JOB_FILE', r"C:\Users\bclar\OneDrive - segeomatics.com\2009 - SGG JOBS\Job List - 09302009.xls")
+    
+    if os.path.exists(master_path):
+        try:
+            import pandas as pd
+            df = pd.read_excel(master_path)
+            new_jobs = []
+            for _, r in df.iterrows():
+                num = r.get('Job Number')
+                name = r.get('Job Name')
+                if pd.notna(num) and pd.notna(name):
+                    clean_num = str(int(num)) if isinstance(num, (int, float)) else str(num).strip()
+                    clean_name = str(name).strip()
+                    if clean_num and clean_name and clean_name.lower() != 'nan':
+                        new_jobs.append({'number': clean_num, 'name': clean_name})
+            if new_jobs:
+                JOBS = new_jobs
+                last_job_load_time = time.time()
+                return
+        except Exception as e:
+            print(f"Error reading master Excel file {master_path}: {e}")
+
+    # 2. Fallback to jobs.json
     json_path = os.path.join(os.path.dirname(__file__), 'jobs.json')
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -44,6 +71,7 @@ def load_jobs():
     except Exception as e:
         print(f"Error loading jobs from {json_path}: {e}")
         JOBS = []
+    last_job_load_time = time.time()
 
 load_jobs()
 
@@ -62,6 +90,9 @@ def login_required(f):
 
 @app.route('/')
 def index():
+    # Auto-refresh jobs if cache is older than 60 seconds
+    if time.time() - last_job_load_time > 60:
+        load_jobs()
     return render_template('index.html', employees=EMPLOYEES, jobs=JOBS)
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -83,6 +114,8 @@ def logout():
 
 @app.route('/api/jobs')
 def get_jobs():
+    if time.time() - last_job_load_time > 60:
+        load_jobs()
     return jsonify(JOBS)
 
 @app.route('/api/submit', methods=['POST'])
@@ -106,6 +139,8 @@ def submit_timesheet():
 @app.route('/admin')
 @login_required
 def admin():
+    if time.time() - last_job_load_time > 60:
+        load_jobs()
     return render_template('admin.html', jobs_count=len(JOBS))
 
 @app.route('/admin/upload-jobs', methods=['POST'])
@@ -118,23 +153,17 @@ def upload_jobs():
         return jsonify({'success': False, 'error': 'File must be an Excel file (.xlsx or .xls)'}), 400
     
     try:
-        import openpyxl
-        wb = openpyxl.load_workbook(file, data_only=True)
-        sheet = wb.active
-        
+        import pandas as pd
+        df = pd.read_excel(file)
         new_jobs = []
-        for row in sheet.iter_rows(values_only=True):
-            if not row or len(row) < 2:
-                continue
-            col0 = str(row[0]).strip() if row[0] is not None else ''
-            col1 = str(row[1]).strip() if row[1] is not None else ''
-            
-            # Skip header rows
-            if col0.lower() in ['job', 'job number', 'job #', 'number', '#', 'job_number'] or col1.lower() in ['name', 'job name', 'description', 'job_name']:
-                continue
-            
-            if col0 and col1 and col0.lower() != 'none' and col1.lower() != 'none':
-                new_jobs.append({'number': col0, 'name': col1})
+        for _, r in df.iterrows():
+            num = r.iloc[0] if len(r) > 0 else None
+            name = r.iloc[1] if len(r) > 1 else None
+            if pd.notna(num) and pd.notna(name):
+                clean_num = str(int(num)) if isinstance(num, (int, float)) else str(num).strip()
+                clean_name = str(name).strip()
+                if clean_num and clean_name and clean_name.lower() != 'nan':
+                    new_jobs.append({'number': clean_num, 'name': clean_name})
         
         if not new_jobs:
             return jsonify({'success': False, 'error': 'No valid job rows found in Excel file'}), 400
