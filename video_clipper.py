@@ -21,8 +21,6 @@ def ensure_dirs():
 
 def process_videos():
     ensure_dirs()
-    print("[Video Clipper] Scanning input folders for new source videos...")
-    
     subfolders = ["TikTok_Mobsters", "YouTube_PoliceCams", "General"]
     
     for sub in subfolders:
@@ -39,7 +37,6 @@ def process_videos():
             name_no_ext, _ = os.path.splitext(filename)
             print(f"[Video Clipper] Found new source video: {filename} in {sub}")
             
-            # Generate 30-second clips (e.g. 3 clips per source video at different timestamps: 0s, 60s, 120s)
             timestamps = [0, 60, 120]
             
             for i, ts in enumerate(timestamps, 1):
@@ -51,7 +48,6 @@ def process_videos():
                     
                 print(f"[Video Clipper] Generating 9:16 vertical clip #{i} starting at {ts}s...")
                 
-                # FFmpeg command: seek to timestamp, take 30s, crop to 9:16 vertical (1080x1920)
                 cmd = f'ffmpeg -y -ss {ts} -i "{video_path}" -t 30 -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920" -c:v libx264 -preset fast -c:a aac "{output_path}"'
                 
                 try:
@@ -63,7 +59,6 @@ def process_videos():
                 except Exception as e:
                     print(f"  -> Exception clipping video: {e}")
                     
-            # Move source to processed
             try:
                 dest_processed = os.path.join(proc_sub, filename)
                 if os.path.exists(dest_processed):
@@ -75,10 +70,5 @@ def process_videos():
 
 if __name__ == "__main__":
     ensure_dirs()
-    print("Starting 24/7 Video Clipping Daemon...")
-    while True:
-        try:
-            process_videos()
-        except Exception as e:
-            print(f"Daemon error: {e}")
-        time.sleep(30) # Check every 30 seconds for new source videos
+    print("Running single video clipper pass...")
+    process_videos()
