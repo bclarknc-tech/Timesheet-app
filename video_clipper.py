@@ -1,8 +1,7 @@
 """
 24/7 Autonomous Video Clipping Daemon (Runs on Spare PC: 192.168.86.70)
-Continuously monitors M:\Video Clipper\Input\ for new raw source videos,
+Monitors Jarvis 2.0 Vault OneDrive folder for raw source videos,
 automatically slices them into viral 30-second 9:16 vertical clips, and deposits them into Output/.
-Runs completely autonomously 24/7.
 """
 import os
 import time
@@ -10,7 +9,7 @@ import subprocess
 import datetime
 import glob
 
-VAULT_BASE = r"M:\Video Clipper"
+VAULT_BASE = r"C:\Users\bclar\OneDrive\Desktop\Jarvis 2.0\Video Clipper"
 INPUT_DIR = os.path.join(VAULT_BASE, "Input")
 OUTPUT_DIR = os.path.join(VAULT_BASE, "Output")
 PROCESSED_DIR = os.path.join(VAULT_BASE, "Processed")
@@ -73,7 +72,7 @@ if __name__ == "__main__":
     ensure_dirs()
     print(f"==================================================")
     print(f" 24/7 Autonomous Video Clipper Daemon Started")
-    print(f" Monitoring: {INPUT_DIR}")
+    print(f" Monitoring Vault Path: {INPUT_DIR}")
     print(f"==================================================")
     
     while True:
@@ -81,4 +80,4 @@ if __name__ == "__main__":
             process_videos()
         except Exception as e:
             print(f"Daemon error: {e}")
-        time.sleep(30) # Poll every 30 seconds for new files
+        time.sleep(30)
