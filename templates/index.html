@@ -209,7 +209,8 @@
     </div>
 
     <script>
-        let jobs = [];
+        let jobs = {{ jobs|tojson }};
+        let lastAutofill = '';
 
         // Auto-set today's date
         const dateInput = document.getElementById('date');
@@ -226,45 +227,80 @@
             localStorage.setItem('selected_employee', empSelect.value);
         });
 
-        // Load jobs list from API
-        fetch('/api/jobs')
-            .then(r => r.json())
-            .then(data => { jobs = data; });
-
         const jobNumberInput = document.getElementById('jobNumber');
         const jobNameInput = document.getElementById('jobName');
         const jobSuggestions = document.getElementById('jobSuggestions');
 
-        jobNumberInput.addEventListener('input', (e) => {
-            const val = e.target.value.trim().toLowerCase();
+        function findExactJob(value) {
+            const key = String(value || '').trim().toLowerCase();
+            if (!key) return null;
+            return jobs.find(job => String(job.number).trim().toLowerCase() === key) || null;
+        }
+
+        function syncJobNameFromNumber(force) {
+            const match = findExactJob(jobNumberInput.value);
+            if (!match) return;
+            const current = jobNameInput.value.trim();
+            if (force || !current || current === lastAutofill) {
+                jobNameInput.value = match.name;
+                lastAutofill = match.name;
+            }
+        }
+
+        function renderJobSuggestions() {
+            const val = jobNumberInput.value.trim().toLowerCase();
             if (!val) {
                 jobSuggestions.classList.remove('active');
                 return;
             }
 
-            const matches = jobs.filter(j => 
-                j.number.toLowerCase().includes(val) || 
-                j.name.toLowerCase().includes(val)
+            const matches = jobs.filter(j =>
+                String(j.number).toLowerCase().includes(val) ||
+                String(j.name).toLowerCase().includes(val)
             ).slice(0, 15);
 
             if (matches.length === 0) {
                 jobSuggestions.classList.remove('active');
-            } else {
-                jobSuggestions.classList.add('active');
-                jobSuggestions.innerHTML = '';
-                matches.forEach(job => {
-                    const div = document.createElement('div');
-                    div.className = 'job-suggestion';
-                    div.innerHTML = `<span class="job-num">${job.number}</span><span class="job-lbl">${job.name}</span>`;
-                    div.addEventListener('click', () => {
-                        jobNumberInput.value = job.number;
-                        jobNameInput.value = job.name;
-                        jobSuggestions.classList.remove('active');
-                    });
-                    jobSuggestions.appendChild(div);
-                });
+                return;
             }
+
+            jobSuggestions.classList.add('active');
+            jobSuggestions.innerHTML = '';
+            matches.forEach(job => {
+                const div = document.createElement('div');
+                div.className = 'job-suggestion';
+                div.innerHTML = `<span class="job-num">${job.number}</span><span class="job-lbl">${job.name}</span>`;
+                div.addEventListener('click', () => {
+                    jobNumberInput.value = job.number;
+                    jobNameInput.value = job.name;
+                    lastAutofill = job.name;
+                    jobSuggestions.classList.remove('active');
+                });
+                jobSuggestions.appendChild(div);
+            });
+        }
+
+        function refreshJobs() {
+            return fetch('/api/jobs', { cache: 'no-store' })
+                .then(r => r.json())
+                .then(data => {
+                    if (!Array.isArray(data)) return;
+                    jobs = data;
+                    syncJobNameFromNumber(false);
+                    if (document.activeElement === jobNumberInput) {
+                        renderJobSuggestions();
+                    }
+                })
+                .catch(() => {});
+        }
+
+        refreshJobs();
+        jobNumberInput.addEventListener('focus', () => { refreshJobs(); });
+        jobNumberInput.addEventListener('input', () => {
+            renderJobSuggestions();
+            syncJobNameFromNumber(true);
         });
+        jobNumberInput.addEventListener('change', () => { syncJobNameFromNumber(true); });
 
         document.addEventListener('click', (e) => {
             if (e.target !== jobNumberInput && !jobSuggestions.contains(e.target)) {
