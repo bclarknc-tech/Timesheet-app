@@ -13,10 +13,25 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'timesheet-admin-secret-2026')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin')
 
+def normalize_database_url(url):
+    """Accept both postgres:// and postgresql:// and use the psycopg v3 driver.
+
+    Render has issued both schemes. A bare postgresql:// URL asks SQLAlchemy
+    for the psycopg module, not psycopg2.
+    """
+    if not url:
+        return url
+    scheme, sep, rest = url.partition('://')
+    if not sep:
+        return url
+    scheme_name = scheme.lower()
+    if scheme_name in ('postgres', 'postgresql'):
+        scheme_name = 'postgresql+psycopg'
+    return scheme_name + '://' + rest
+
 database_url = os.environ.get('DATABASE_URL')
 if database_url:
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
-    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    app.config['SQLALCHEMY_DATABASE_URI'] = normalize_database_url(database_url)
 else:
     basedir = os.path.abspath(os.path.dirname(__file__))
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'timesheet.db')
@@ -311,6 +326,7 @@ def maybe_sync_master_job_file():
 def _no_store(response):
     response.headers['Cache-Control'] = 'no-store, max-age=0'
     response.headers['Pragma'] = 'no-cache'
+    response.headers['X-DB-Driver'] = db.engine.dialect.driver
     return response
 
 with app.app_context():

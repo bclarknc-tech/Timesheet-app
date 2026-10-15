@@ -52,6 +52,11 @@ def snapshot_timesheets():
 
 
 def main():
+    assert app_module.normalize_database_url('postgres://u:p@db/timesheet') == 'postgresql+psycopg://u:p@db/timesheet'
+    assert app_module.normalize_database_url('postgresql://u:p@db/timesheet') == 'postgresql+psycopg://u:p@db/timesheet'
+    assert app_module.normalize_database_url('postgresql+psycopg://u:p@db/timesheet') == 'postgresql+psycopg://u:p@db/timesheet'
+    assert app_module.normalize_database_url('sqlite:///timesheet.db') == 'sqlite:///timesheet.db'
+
     client = app_module.app.test_client()
     with app_module.app.app_context():
         before_seed = app_module.get_job_list()
