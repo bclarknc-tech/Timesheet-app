@@ -32,6 +32,8 @@
         .filters button:hover { background: #2c5282; }
         .print-btn { padding: 9px 18px; background: #718096; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; }
         .print-btn:hover { background: #4a5568; }
+        .print-now-btn { padding: 9px 18px; background: #2f855a; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; }
+        .print-now-btn:hover { background: #276749; }
 
         .table-wrapper { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; border: 1px solid #cbd5e0; }
@@ -52,18 +54,73 @@
         
         .totals { margin-top: 20px; padding: 15px; background: #edf2f7; border-radius: 8px; font-size: 16px; }
 
-        .print-preview { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: white; z-index: 1000; overflow-y: auto; }
+        .print-preview { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #edf2f7; z-index: 1000; overflow-y: auto; }
         .print-preview.active { display: block; }
-        .print-preview-content { max-width: 8.5in; margin: 0.5in auto; padding: 0.5in; background: white; }
-        .print-preview-header { text-align: center; margin-bottom: 20px; }
-        .print-preview-header h2 { margin-bottom: 10px; }
+        .print-preview.active[data-measuring="1"] { visibility: hidden !important; }
         .print-close { position: fixed; top: 10px; right: 10px; padding: 10px 20px; background: #e53e3e; color: white; border: none; border-radius: 6px; cursor: pointer; z-index: 1001; font-weight: 600; }
+        .print-toolbar { text-align: center; margin: 0 0 24px; }
+        .letter-frame {
+            width: 8.5in;
+            height: 11in;
+            margin: 56px auto 12px;
+            padding: 0.4in;
+            background: white;
+            box-sizing: border-box;
+            box-shadow: 0 0 0 1px #cbd5e0, 0 12px 40px rgba(0,0,0,0.18);
+            overflow: hidden;
+        }
+        .print-fit { width: 7.7in; transform-origin: top left; }
+        .print-header { margin-bottom: 6px; }
+        .print-header h2 { font-size: 13pt; line-height: 1.15; margin: 0; color: #1a202c; }
+        .print-header p { font-size: 8pt; color: #2d3748; margin: 2px 0 0; }
+        .print-fit table { width: 100%; border-collapse: collapse; }
+        .print-fit th, .print-fit td {
+            border: 0.6pt solid #4a5568;
+            padding: 2px 3px;
+            font-size: 8pt;
+            line-height: 1.15;
+            vertical-align: top;
+            word-break: break-word;
+        }
+        .print-fit td.desc { white-space: pre-wrap; }
+        .print-fit th { background: #edf2f7; font-weight: 700; text-align: left; }
+        .print-fit .group-row td { background: #ebf8ff; font-weight: 700; color: #2b6cb0; }
+        .print-totals { margin-top: 6px; font-size: 8pt; font-weight: 700; }
+        .print-fit .col-emp { width: 14%; }
+        .print-fit .col-num { width: 9%; }
+        .print-fit .col-name { width: 16%; }
+        .print-fit .col-hrs { width: 7%; }
+        .print-fit .col-date { width: 11%; }
+        .print-fit .col-desc { width: 33%; }
+        .print-fit .col-status { width: 10%; }
+
+        @page {
+            size: letter;
+            margin: 0.4in;
+        }
 
         @media print {
-            body { background: white; }
-            .container, .admin-card, .header-bar .logout-btn { display: none; }
-            .print-preview { position: static; }
-            .print-close { display: none; }
+            html, body { background: white !important; margin: 0 !important; padding: 0 !important; }
+            .container { display: none !important; }
+            .print-preview {
+                display: block !important;
+                position: static !important;
+                inset: auto !important;
+                overflow: visible !important;
+                background: white !important;
+                visibility: visible !important;
+            }
+            .print-close, .print-toolbar, .no-print { display: none !important; }
+            .letter-frame {
+                width: auto;
+                height: auto;
+                max-height: 10.2in;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+                overflow: hidden;
+            }
+            .print-fit { width: 7.7in; }
         }
     </style>
 </head>
@@ -77,7 +134,7 @@
         <!-- Excel Jobs Import Card -->
         <div class="admin-card">
             <h3>📁 Sync Jobs List from Excel</h3>
-            <p class="jobs-info">Upload your job list Excel spreadsheet (<code>.xlsx</code>). The app will read column 1 (Job Number) and column 2 (Job Name) and update the crew's job dropdown automatically!</p>
+            <p class="jobs-info">Upload your job list Excel spreadsheet (<code>.xls</code> or <code>.xlsx</code>, for example <code>Job List - 09302009.xls</code>). The app reads the Job Number and Job Name columns, saves them in the database, and the crew timesheet form fills the job name from that list.</p>
             <form id="jobsUploadForm" class="upload-row">
                 <input type="file" id="excelFile" name="file" accept=".xlsx, .xls" class="file-input" required>
                 <button type="submit" class="upload-btn">Upload & Sync Jobs</button>
@@ -106,8 +163,9 @@
                 <option value="by_job">Group by Job</option>
                 <option value="by_date">Group by Date</option>
             </select>
-            <button onclick="generateReport()">Generate Report</button>
-            <button class="print-btn" onclick="showPrintPreview()">Print Preview</button>
+            <button type="button" onclick="generateReport()">Generate Report</button>
+            <button type="button" class="print-now-btn" onclick="printReport()">Print</button>
+            <button type="button" class="print-btn" onclick="showPrintPreview()">Print Preview</button>
         </div>
 
         <!-- Entries Table -->
@@ -136,38 +194,153 @@
         </div>
     </div>
 
-    <!-- Print Preview Modal -->
+    <!-- Letter-size print sheet. Hidden on screen until Print Preview; this is what the printer uses. -->
     <div class="print-preview" id="printPreview">
-        <button class="print-close" onclick="closePrintPreview()">Close Preview</button>
-        <div class="print-preview-content">
-            <div class="print-preview-header">
-                <h2>Timesheet Report</h2>
-                <p id="printDate"></p>
+        <button type="button" class="print-close no-print" onclick="closePrintPreview()">Close Preview</button>
+        <div class="letter-frame" id="letterFrame">
+            <div class="print-fit" id="printFit">
+                <div class="print-header">
+                    <h2>Southeast Geomatics — Timesheet Report</h2>
+                    <p id="printMeta"></p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="col-emp">Employee</th>
+                            <th class="col-num">Job #</th>
+                            <th class="col-name">Job Name</th>
+                            <th class="col-hrs">Hours</th>
+                            <th class="col-date">Date</th>
+                            <th class="col-desc">Description</th>
+                            <th class="col-status">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="printEntries"></tbody>
+                </table>
+                <p class="print-totals" id="printTotals"></p>
             </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Employee</th>
-                        <th>Job #</th>
-                        <th>Job Name</th>
-                        <th>Hours</th>
-                        <th>Date</th>
-                        <th>Description</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody id="printEntries"></tbody>
-            </table>
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #ddd;">
-                <p><strong>Total Hours:</strong> <span id="printTotalHours">0</span> hrs | <strong>Total Entries:</strong> <span id="printTotalEntries">0</span></p>
-            </div>
-            <div style="margin-top: 30px; text-align: center;">
-                <button class="print-btn" onclick="window.print()">Print Report</button>
-            </div>
+        </div>
+        <div class="print-toolbar no-print">
+            <button type="button" class="print-now-btn" onclick="printReport()">Print</button>
         </div>
     </div>
 
     <script>
+        let latestReport = { entries: [], total_hours: 0, grouped: null, report_type: 'flat' };
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function entryCells(entry) {
+            const status = entry.is_billed ? 'BILLED' : 'UNBILLED';
+            return `
+                <td>${escapeHtml(entry.employee)}</td>
+                <td><strong>${escapeHtml(entry.job_number)}</strong></td>
+                <td>${escapeHtml(entry.job_name)}</td>
+                <td><strong>${escapeHtml(entry.hours)}</strong></td>
+                <td>${escapeHtml(entry.date)}</td>
+                <td class="desc">${escapeHtml(entry.description)}</td>
+                <td>${status}</td>
+            `;
+        }
+
+        function buildPrintSheet() {
+            const tbody = document.getElementById('printEntries');
+            const data = latestReport || { entries: [], total_hours: 0, report_type: 'flat' };
+            let rows = '';
+            if (data.report_type === 'flat' || !data.grouped) {
+                rows = (data.entries || []).map(entry => `<tr>${entryCells(entry)}</tr>`).join('');
+            } else {
+                const labels = { by_employee: 'Employee', by_job: 'Job', by_date: 'Date' };
+                const label = labels[data.report_type] || 'Group';
+                Object.keys(data.grouped).sort().forEach(key => {
+                    const group = data.grouped[key];
+                    const title = data.report_type === 'by_job' ? `${key} - ${group.job_name}` : key;
+                    rows += `<tr class="group-row"><td colspan="7">${escapeHtml(label)}: ${escapeHtml(title)} | ${escapeHtml(group.total_hours)} hrs</td></tr>`;
+                    group.entries.forEach(entry => {
+                        rows += `<tr>${entryCells(entry)}</tr>`;
+                    });
+                });
+            }
+            if (!rows) {
+                rows = '<tr><td colspan="7">No timesheet entries for this report.</td></tr>';
+            }
+            tbody.innerHTML = rows;
+
+            const employee = document.getElementById('employeeFilter').value;
+            const job = document.getElementById('jobFilter').value;
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+            const unbilled = document.getElementById('unbilledOnly').checked;
+            const filters = [];
+            if (employee) filters.push(employee);
+            if (job) filters.push('Job ' + job);
+            if (start || end) filters.push((start || '…') + ' to ' + (end || '…'));
+            if (unbilled) filters.push('Unbilled only');
+            const when = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            document.getElementById('printMeta').textContent = [when, filters.join(' · ') || 'All entries'].join(' · ');
+            const count = (data.entries || []).length;
+            document.getElementById('printTotals').textContent =
+                `Total Hours: ${data.total_hours || 0} hrs  |  Total Entries: ${count}`;
+        }
+
+        function fitPrintToLetter() {
+            const preview = document.getElementById('printPreview');
+            const frame = document.getElementById('letterFrame');
+            const fit = document.getElementById('printFit');
+            const wasActive = preview.classList.contains('active');
+            if (!wasActive) {
+                preview.dataset.measuring = '1';
+                preview.classList.add('active');
+            }
+            fit.style.zoom = '1';
+            const style = getComputedStyle(frame);
+            const available = frame.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+            const needed = fit.scrollHeight;
+            // Leave a little slack. Print layout is a hair shorter than the on-screen letter frame,
+            // and an exact fit clips the last row under overflow:hidden.
+            let scale = 1;
+            if (needed > available && available > 0) {
+                scale = (available / needed) * 0.94;
+            }
+            fit.style.zoom = String(Math.max(scale, 0.01));
+            const fitted = fit.getBoundingClientRect().height;
+            if (fitted > available && fitted > 0) {
+                scale = scale * (available / fitted) * 0.96;
+                fit.style.zoom = String(Math.max(scale, 0.01));
+            }
+            if (!wasActive) {
+                preview.classList.remove('active');
+                delete preview.dataset.measuring;
+            }
+        }
+
+        function showPrintPreview() {
+            buildPrintSheet();
+            document.getElementById('printPreview').classList.add('active');
+            fitPrintToLetter();
+        }
+
+        function closePrintPreview() {
+            document.getElementById('printPreview').classList.remove('active');
+        }
+
+        function printReport() {
+            buildPrintSheet();
+            fitPrintToLetter();
+            window.print();
+        }
+
+        window.addEventListener('beforeprint', () => {
+            buildPrintSheet();
+            fitPrintToLetter();
+        });
+
         function generateReport() {
             const employee = document.getElementById('employeeFilter').value;
             const job = document.getElementById('jobFilter').value;
@@ -184,7 +357,7 @@
             if (unbilled) url += 'unbilled_only=true&';
             url += 'report_type=' + reportType + '&';
 
-            fetch(url)
+            return fetch(url)
                 .then(r => r.json())
                 .then(data => {
                     if (data.error) {
@@ -194,6 +367,7 @@
                     const tbody = document.getElementById('entries');
                     tbody.innerHTML = '';
 
+                    latestReport = data;
                     if (data.report_type === 'flat') {
                         renderFlatReport(data.entries, tbody);
                     } else if (data.grouped) {
@@ -202,6 +376,7 @@
 
                     document.getElementById('totalHours').textContent = data.total_hours;
                     document.getElementById('totalEntries').textContent = data.entries.length;
+                    buildPrintSheet();
                 });
         }
 
@@ -287,19 +462,6 @@
                         else alert('Error: ' + result.error);
                     });
             }
-        }
-
-        function showPrintPreview() {
-            const printEntries = document.getElementById('printEntries');
-            printEntries.innerHTML = document.getElementById('entries').innerHTML;
-            document.getElementById('printTotalHours').textContent = document.getElementById('totalHours').textContent;
-            document.getElementById('printTotalEntries').textContent = document.getElementById('totalEntries').textContent;
-            document.getElementById('printDate').textContent = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-            document.getElementById('printPreview').classList.add('active');
-        }
-
-        function closePrintPreview() {
-            document.getElementById('printPreview').classList.remove('active');
         }
 
         // Upload Excel jobs form

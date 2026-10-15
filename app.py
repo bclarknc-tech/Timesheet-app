@@ -1,7 +1,10 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, make_response
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from functools import wraps
+from io import BytesIO
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 import os
 import json
 import time
@@ -33,50 +36,286 @@ class Timesheet(db.Model):
     date_submitted = db.Column(db.DateTime, default=datetime.utcnow)
     is_billed = db.Column(db.Boolean, default=False)
 
+class Job(db.Model):
+    """Job-number catalog used by the timesheet autofill. Separate from timesheet entries."""
+    __tablename__ = 'job_catalog'
+    id = db.Column(db.Integer, primary_key=True)
+    number = db.Column(db.String(128), nullable=False, unique=True, index=True)
+    name = db.Column(db.Text, nullable=False)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+
+class JobCatalogMeta(db.Model):
+    """One row describing where the current catalog came from and when."""
+    __tablename__ = 'job_catalog_meta'
+    id = db.Column(db.Integer, primary_key=True)
+    source = db.Column(db.String(32), nullable=False, default='json')
+    updated_epoch = db.Column(db.Float, nullable=False, default=0)
+    source_mtime = db.Column(db.Float, nullable=True)
+
 EMPLOYEES = ['Brian Clark', 'Rolfe Haigler', 'Dylan Williams']
-JOBS = []
-last_job_load_time = 0
+DEFAULT_MASTER_JOB_FILE = r"C:\Users\bclar\OneDrive - segeomatics.com\2009 - SGG JOBS\Job List - 09302009.xls"
+NUMBER_HEADERS = {
+    'job number', 'job #', 'job no', 'job no.', 'job num', 'jobnumber', 'number',
+}
+NAME_HEADERS = {
+    'job name', 'jobname', 'name', 'project', 'project name',
+}
+_last_master_check = 0
 
-def load_jobs():
-    global JOBS, last_job_load_time
-    
-    # 1. Try loading directly from master OneDrive Excel file if present
-    master_path = os.environ.get('MASTER_JOB_FILE', r"C:\Users\bclar\OneDrive - segeomatics.com\2009 - SGG JOBS\Job List - 09302009.xls")
-    
-    if os.path.exists(master_path):
+def master_job_path():
+    return os.environ.get('MASTER_JOB_FILE', DEFAULT_MASTER_JOB_FILE)
+
+def _header_key(value):
+    text_value = normalize_job_name(value).lower().replace('_', ' ')
+    return ' '.join(text_value.replace('#', ' # ').split())
+
+def normalize_job_number(value):
+    import pandas as pd
+    if value is None:
+        return ''
+    if not isinstance(value, str):
         try:
-            import pandas as pd
-            df = pd.read_excel(master_path)
-            new_jobs = []
-            for _, r in df.iterrows():
-                num = r.get('Job Number')
-                name = r.get('Job Name')
-                if pd.notna(num) and pd.notna(name):
-                    clean_num = str(int(num)) if isinstance(num, (int, float)) else str(num).strip()
-                    clean_name = str(name).strip()
-                    if clean_num and clean_name and clean_name.lower() != 'nan':
-                        new_jobs.append({'number': clean_num, 'name': clean_name})
-            if new_jobs:
-                JOBS = new_jobs
-                last_job_load_time = time.time()
-                return
-        except Exception as e:
-            print(f"Error reading master Excel file {master_path}: {e}")
+            if pd.isna(value):
+                return ''
+        except TypeError:
+            pass
+    if isinstance(value, str):
+        text_value = value.strip()
+        if not text_value or text_value.lower() == 'nan':
+            return ''
+        if text_value.endswith('.0'):
+            head = text_value[:-2].strip()
+            if head.lstrip('-').isdigit():
+                return head
+        return text_value
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        text_value = str(value).strip()
+        return '' if not text_value or text_value.lower() == 'nan' else text_value
+    if number.is_integer():
+        return str(int(number))
+    text_value = str(value).strip()
+    return '' if text_value.lower() == 'nan' else text_value
 
-    # 2. Fallback to jobs.json
+def normalize_job_name(value):
+    import pandas as pd
+    if value is None:
+        return ''
+    if not isinstance(value, str):
+        try:
+            if pd.isna(value):
+                return ''
+        except TypeError:
+            pass
+    text_value = str(value).strip()
+    if not text_value or text_value.lower() == 'nan':
+        return ''
+    return text_value
+
+def excel_engine_for_bytes(raw, filename):
+    if raw.startswith(b'\xD0\xCF\x11\xE0'):
+        return 'xlrd'
+    if raw.startswith(b'PK\x03\x04'):
+        return 'openpyxl'
+    ext = os.path.splitext(filename or '')[1].lower()
+    if ext == '.xls':
+        return 'xlrd'
+    if ext in ('.xlsx', '.xlsm'):
+        return 'openpyxl'
+    return None
+
+def find_job_columns(df):
+    specific_numbers = {'job number', 'job #', 'job no', 'job no.', 'job num', 'jobnumber'}
+    specific_names = {'job name', 'jobname', 'project name'}
+    limit = min(len(df), 40)
+    for index in range(limit):
+        keys = [_header_key(cell) for cell in df.iloc[index].tolist()]
+        num_candidates = [n for n, key in enumerate(keys) if key in NUMBER_HEADERS]
+        name_candidates = [n for n, key in enumerate(keys) if key in NAME_HEADERS]
+        if not num_candidates or not name_candidates:
+            continue
+        num_idx = sorted(num_candidates, key=lambda n: (0 if keys[n] in specific_numbers else 1, n))[0]
+        name_idx = sorted(name_candidates, key=lambda n: (0 if keys[n] in specific_names else 1, n))[0]
+        if num_idx != name_idx:
+            return index, num_idx, name_idx
+    return None, 0, 1
+
+def jobs_from_dataframe(df):
+    if df is None or getattr(df, 'empty', True) or len(df.columns) < 2:
+        return []
+    header_idx, num_col, name_col = find_job_columns(df)
+    start = header_idx + 1 if header_idx is not None else 0
+    found = {}
+    order = []
+    for index in range(start, len(df)):
+        row = df.iloc[index]
+        if num_col >= len(row) or name_col >= len(row):
+            continue
+        number = normalize_job_number(row.iloc[num_col])
+        name = normalize_job_name(row.iloc[name_col])
+        if not number or not name:
+            continue
+        if number.lower() in NUMBER_HEADERS or name.lower() in NAME_HEADERS:
+            continue
+        if number not in found:
+            order.append(number)
+        found[number] = name
+    return [{'number': number, 'name': found[number]} for number in order]
+
+def parse_job_excel(source, filename=None):
+    import pandas as pd
+    if isinstance(source, (bytes, bytearray)):
+        raw = bytes(source)
+        name = filename or ''
+    elif isinstance(source, str):
+        name = filename or source
+        with open(source, 'rb') as handle:
+            raw = handle.read()
+    else:
+        name = filename or getattr(source, 'filename', '') or ''
+        raw = source.read()
+    if not raw:
+        return []
+    engine = excel_engine_for_bytes(raw, name)
+    bio = BytesIO(raw)
+    read_kwargs = {'header': None, 'sheet_name': None}
+    if engine:
+        read_kwargs['engine'] = engine
+    try:
+        sheets = pd.read_excel(bio, **read_kwargs)
+    except Exception:
+        if not engine:
+            raise
+        bio.seek(0)
+        sheets = pd.read_excel(bio, header=None, sheet_name=None)
+    if not isinstance(sheets, dict):
+        sheets = {'Sheet1': sheets}
+    best = []
+    for frame in sheets.values():
+        parsed = jobs_from_dataframe(frame)
+        if len(parsed) > len(best):
+            best = parsed
+    return best
+
+def load_jobs_json():
     json_path = os.path.join(os.path.dirname(__file__), 'jobs.json')
     try:
-        with open(json_path, 'r', encoding='utf-8') as f:
-            JOBS = json.load(f)
-    except Exception as e:
-        print(f"Error loading jobs from {json_path}: {e}")
-        JOBS = []
-    last_job_load_time = time.time()
+        with open(json_path, 'r', encoding='utf-8') as handle:
+            payload = json.load(handle)
+    except Exception as exc:
+        print(f"Error loading jobs from {json_path}: {exc}")
+        return []
+    jobs = []
+    seen = set()
+    if not isinstance(payload, list):
+        return []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        number = normalize_job_number(item.get('number'))
+        name = normalize_job_name(item.get('name'))
+        if not number or not name or number in seen:
+            continue
+        seen.add(number)
+        jobs.append({'number': number, 'name': name})
+    return jobs
 
-load_jobs()
+def get_job_list():
+    rows = Job.query.order_by(Job.sort_order.asc(), Job.id.asc()).all()
+    return [{'number': row.number, 'name': row.name} for row in rows]
+
+def save_job_catalog(jobs, source, source_mtime=None):
+    """Replace the job catalog only. Timesheet rows are never touched."""
+    for row in Job.query.all():
+        db.session.delete(row)
+    db.session.flush()
+    for index, job in enumerate(jobs):
+        db.session.add(Job(number=job['number'], name=job['name'], sort_order=index))
+    meta = db.session.get(JobCatalogMeta, 1)
+    if meta is None:
+        meta = JobCatalogMeta(id=1)
+        db.session.add(meta)
+    meta.source = source
+    meta.updated_epoch = time.time()
+    meta.source_mtime = source_mtime
+    db.session.commit()
+    print(f"Saved {len(jobs)} jobs to the database catalog (source={source})")
+
+def _with_catalog_lock(fn):
+    dialect = db.session.get_bind().dialect.name
+    locked = dialect == 'postgresql'
+    if locked:
+        db.session.execute(text('SELECT pg_advisory_lock(:key)'), {'key': 874521})
+    try:
+        return fn()
+    finally:
+        if locked:
+            db.session.execute(text('SELECT pg_advisory_unlock(:key)'), {'key': 874521})
+            db.session.commit()
+
+def seed_job_catalog_if_empty():
+    def _seed():
+        if Job.query.count() > 0:
+            return
+        jobs = []
+        source = 'json'
+        source_mtime = None
+        master_path = master_job_path()
+        if master_path and os.path.exists(master_path):
+            try:
+                jobs = parse_job_excel(master_path)
+                source = 'master'
+                source_mtime = os.path.getmtime(master_path)
+            except Exception as exc:
+                print(f"Error reading master Excel file {master_path}: {exc}")
+                jobs = []
+        if not jobs:
+            jobs = load_jobs_json()
+            source = 'json'
+            source_mtime = None
+        if jobs:
+            save_job_catalog(jobs, source=source, source_mtime=source_mtime)
+    try:
+        _with_catalog_lock(_seed)
+    except IntegrityError:
+        db.session.rollback()
+
+def maybe_sync_master_job_file():
+    """Keep the OneDrive master workbook sync, without clobbering a newer admin upload."""
+    global _last_master_check
+    now = time.time()
+    if now - _last_master_check < 60:
+        return
+    _last_master_check = now
+    master_path = master_job_path()
+    if not master_path or not os.path.exists(master_path):
+        return
+    try:
+        mtime = os.path.getmtime(master_path)
+    except OSError:
+        return
+    meta = db.session.get(JobCatalogMeta, 1)
+    if meta and meta.source == 'master' and meta.source_mtime == mtime:
+        return
+    if meta and meta.source == 'upload' and (meta.updated_epoch or 0) > mtime:
+        return
+    try:
+        jobs = parse_job_excel(master_path)
+    except Exception as exc:
+        print(f"Error reading master Excel file {master_path}: {exc}")
+        return
+    if jobs:
+        save_job_catalog(jobs, source='master', source_mtime=mtime)
+
+def _no_store(response):
+    response.headers['Cache-Control'] = 'no-store, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    return response
 
 with app.app_context():
     db.create_all()
+    seed_job_catalog_if_empty()
 
 def login_required(f):
     @wraps(f)
@@ -90,10 +329,9 @@ def login_required(f):
 
 @app.route('/')
 def index():
-    # Auto-refresh jobs if cache is older than 60 seconds
-    if time.time() - last_job_load_time > 60:
-        load_jobs()
-    return render_template('index.html', employees=EMPLOYEES, jobs=JOBS)
+    maybe_sync_master_job_file()
+    response = make_response(render_template('index.html', employees=EMPLOYEES, jobs=get_job_list()))
+    return _no_store(response)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -114,9 +352,8 @@ def logout():
 
 @app.route('/api/jobs')
 def get_jobs():
-    if time.time() - last_job_load_time > 60:
-        load_jobs()
-    return jsonify(JOBS)
+    maybe_sync_master_job_file()
+    return _no_store(jsonify(get_job_list()))
 
 @app.route('/api/submit', methods=['POST'])
 def submit_timesheet():
@@ -139,9 +376,9 @@ def submit_timesheet():
 @app.route('/admin')
 @login_required
 def admin():
-    if time.time() - last_job_load_time > 60:
-        load_jobs()
-    return render_template('admin.html', jobs_count=len(JOBS))
+    maybe_sync_master_job_file()
+    jobs = get_job_list()
+    return render_template('admin.html', jobs_count=len(jobs), employees=EMPLOYEES)
 
 @app.route('/admin/upload-jobs', methods=['POST'])
 @login_required
@@ -153,28 +390,16 @@ def upload_jobs():
         return jsonify({'success': False, 'error': 'File must be an Excel file (.xlsx or .xls)'}), 400
     
     try:
-        import pandas as pd
-        df = pd.read_excel(file)
-        new_jobs = []
-        for _, r in df.iterrows():
-            num = r.iloc[0] if len(r) > 0 else None
-            name = r.iloc[1] if len(r) > 1 else None
-            if pd.notna(num) and pd.notna(name):
-                clean_num = str(int(num)) if isinstance(num, (int, float)) else str(num).strip()
-                clean_name = str(name).strip()
-                if clean_num and clean_name and clean_name.lower() != 'nan':
-                    new_jobs.append({'number': clean_num, 'name': clean_name})
-        
+        new_jobs = parse_job_excel(file, filename=file.filename)
         if not new_jobs:
-            return jsonify({'success': False, 'error': 'No valid job rows found in Excel file'}), 400
-            
-        json_path = os.path.join(os.path.dirname(__file__), 'jobs.json')
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(new_jobs, f, indent=2)
-            
-        load_jobs()
+            return jsonify({
+                'success': False,
+                'error': 'No valid job rows found. Expected columns named Job Number and Job Name.'
+            }), 400
+        save_job_catalog(new_jobs, source='upload')
         return jsonify({'success': True, 'count': len(new_jobs)})
     except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/toggle-bill/<int:entry_id>', methods=['POST'])
@@ -281,7 +506,4 @@ def get_report():
     })
 
 if __name__ == '__main__':
-    load_jobs()
-    with app.app_context():
-        db.create_all()
     app.run(debug=True, port=5000)
