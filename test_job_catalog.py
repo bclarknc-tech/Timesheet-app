@@ -35,27 +35,6 @@ def make_xlsx(path, rows, title=None):
     workbook.save(path)
 
 
-def make_xls(path, rows):
-    import xlwt
-    workbook = xlwt.Workbook()
-    sheet = workbook.add_sheet('Job List')
-    sheet.write(0, 0, 'Southeast Geomatics Job List')
-    headers = ['Job Number', 'Job Name', 'Client', 'Task', 'County', 'Date']
-    for col, header in enumerate(headers):
-        sheet.write(1, col, header)
-    for offset, row in enumerate(rows):
-        for col, value in enumerate(row):
-            sheet.write(2 + offset, col, value)
-    workbook.save(str(path))
-
-
-SAMPLE_ROWS = [
-    (126028, '213 Hillandale', 'Hillandale LLC', 'Survey', 'Mecklenburg', '2009-09-30'),
-    ('H1000', 'Overhead', 'SGG', 'Admin', 'Cabarrus', '2009-09-30'),
-    (122002, 'Villages of Granite', 'Client', 'Topo', 'Union', '2009-10-01'),
-]
-
-
 def snapshot_timesheets():
     rows = []
     for entry in app_module.Timesheet.query.order_by(app_module.Timesheet.id).all():
@@ -106,9 +85,8 @@ def main():
         assert snapshot_timesheets() == original_rows
         assert any(job['number'] == '126021' for job in app_module.get_job_list())
 
-    xls_path = DB_PATH.parent / 'Job List - 09302009.xls'
+    xls_path = ROOT / 'tests' / 'fixtures' / 'job_list_09302009.xls'
     xlsx_path = DB_PATH.parent / 'jobs.xlsx'
-    make_xls(xls_path, SAMPLE_ROWS)
     make_xlsx(
         xlsx_path,
         [(126028, '213 Hillandale', 'Hillandale LLC', 'Survey', 'Mecklenburg', '2009-09-30')],

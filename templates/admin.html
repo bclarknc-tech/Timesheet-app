@@ -302,8 +302,18 @@
             const style = getComputedStyle(frame);
             const available = frame.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
             const needed = fit.scrollHeight;
-            const scale = needed > available && available > 0 ? available / needed : 1;
+            // Leave a little slack. Print layout is a hair shorter than the on-screen letter frame,
+            // and an exact fit clips the last row under overflow:hidden.
+            let scale = 1;
+            if (needed > available && available > 0) {
+                scale = (available / needed) * 0.94;
+            }
             fit.style.zoom = String(Math.max(scale, 0.01));
+            const fitted = fit.getBoundingClientRect().height;
+            if (fitted > available && fitted > 0) {
+                scale = scale * (available / fitted) * 0.96;
+                fit.style.zoom = String(Math.max(scale, 0.01));
+            }
             if (!wasActive) {
                 preview.classList.remove('active');
                 delete preview.dataset.measuring;
